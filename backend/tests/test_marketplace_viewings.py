@@ -112,6 +112,18 @@ def test_setup_landlord_and_units():
     }, headers=h(state["landlord_token"]))
     assert r.status_code == 200, r.text
 
+    # Admin approves the test property so it appears in /public/listings
+    admin_r = requests.post(f"{API}/auth/login", json={
+        "email": "admin@nyumbaos.co.ke", "password": "admin123",
+    })
+    assert admin_r.status_code == 200, admin_r.text
+    state["admin_token"] = admin_r.json()["access_token"]
+    appr = requests.post(
+        f"{API}/admin/approvals/property/{state['property_id']}",
+        json={"approve": True}, headers=h(state["admin_token"]),
+    )
+    assert appr.status_code == 200, appr.text
+
 
 # ----- Public listings -----
 def test_public_listings_no_auth():

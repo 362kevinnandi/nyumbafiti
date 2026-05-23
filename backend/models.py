@@ -21,6 +21,7 @@ IssueStatus = Literal["open", "in_progress", "resolved", "closed"]
 IssuePriority = Literal["low", "medium", "high", "urgent"]
 ViewingStatus = Literal["pending_payment", "scheduled", "completed", "cancelled"]
 PayoutStatus = Literal["pending", "paid"]
+ApprovalStatus = Literal["pending", "approved", "rejected"]
 VIEWING_FEE_KES = 200
 DEFAULT_COMMISSION_RATE = 0.035  # 3.5%
 
@@ -41,6 +42,8 @@ class UserPublic(UserBase):
     id: str
     landlord_id: Optional[str] = None
     unit_id: Optional[str] = None
+    approval_status: Optional[ApprovalStatus] = None
+    suspended: Optional[bool] = False
     created_at: str
 
 
@@ -67,6 +70,8 @@ class Property(PropertyCreate):
     id: str
     landlord_id: str
     units_count: int = 0
+    approval_status: ApprovalStatus = "pending"
+    rejection_reason: Optional[str] = ""
     created_at: str
 
 

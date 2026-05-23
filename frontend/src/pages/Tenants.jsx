@@ -110,7 +110,11 @@ export default function TenantsPage() {
                         <UserCircle className="w-5 h-5 text-zinc-500" />
                       </div>
                       <div>
-                        <div className="font-semibold">{t.full_name}</div>
+                        <div className="font-semibold flex items-center gap-2">
+                          {t.full_name}
+                          {t.approval_status === "pending" && <span className="badge-status bg-amber-50 text-amber-700">Pending</span>}
+                          {t.approval_status === "rejected" && <span className="badge-status bg-red-50 text-red-700">Rejected</span>}
+                        </div>
                         <div className="text-xs text-zinc-500">{t.email}</div>
                       </div>
                     </div>

@@ -166,6 +166,33 @@ def test_caretaker_login():
     assert r.json()["user"]["role"] == "caretaker"
 
 
+# ============ ADMIN APPROVES TEST ENTITIES (so payments/issues can flow) ============
+def test_admin_approves_test_entities():
+    r = requests.post(f"{API}/auth/login", json={
+        "email": "admin@nyumbaos.co.ke", "password": "admin123",
+    })
+    assert r.status_code == 200, r.text
+    state["admin_token"] = r.json()["access_token"]
+    # approve property
+    r = requests.post(
+        f"{API}/admin/approvals/property/{state['property_id']}",
+        json={"approve": True}, headers=h(state["admin_token"]),
+    )
+    assert r.status_code == 200, r.text
+    # approve tenant
+    r = requests.post(
+        f"{API}/admin/approvals/user/{state['tenant_id']}",
+        json={"approve": True}, headers=h(state["admin_token"]),
+    )
+    assert r.status_code == 200, r.text
+    # approve caretaker
+    r = requests.post(
+        f"{API}/admin/approvals/user/{state['caretaker_id']}",
+        json={"approve": True}, headers=h(state["admin_token"]),
+    )
+    assert r.status_code == 200, r.text
+
+
 # ============ BILLS ============
 def test_create_manual_bill():
     r = requests.post(f"{API}/bills", headers=h(state["landlord_token"]), json={

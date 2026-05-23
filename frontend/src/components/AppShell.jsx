@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import {
   Building2, LayoutDashboard, Home, Users, FileText,
   CreditCard, Wrench, HardHat, LogOut, ChevronRight, Calendar,
-  ShieldCheck, Wallet, Settings,
+  ShieldCheck, Wallet, Settings, ClipboardCheck, MessageSquare,
 } from "lucide-react";
 
 const NAV_BY_ROLE = {
@@ -33,7 +33,10 @@ const NAV_BY_ROLE = {
   ],
   admin: [
     { to: "/admin", label: "Platform Overview", icon: ShieldCheck },
+    { to: "/admin/approvals", label: "Approvals", icon: ClipboardCheck },
     { to: "/admin/users", label: "Users", icon: Users },
+    { to: "/admin/bills", label: "All Bills", icon: FileText },
+    { to: "/admin/issues", label: "All Issues", icon: MessageSquare },
     { to: "/admin/payments", label: "All Payments", icon: CreditCard },
     { to: "/admin/payouts", label: "Payouts", icon: Wallet },
     { to: "/admin/settings", label: "Settings", icon: Settings },

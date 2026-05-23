@@ -94,6 +94,11 @@ async def update_issue(
             raise HTTPException(403, "Forbidden")
     if user["role"] == "tenant":
         raise HTTPException(403, "Tenants cannot update issues")
+    if user["role"] == "caretaker" and user.get("approval_status") == "pending":
+        raise HTTPException(
+            403,
+            "Your caretaker account is pending admin verification. You cannot take action on tickets yet.",
+        )
 
     update = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
     if update:

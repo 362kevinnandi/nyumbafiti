@@ -42,6 +42,7 @@ async def create_property(
         "description": payload.description or "",
         "image_url": payload.image_url or "",
         "units_count": 0,
+        "approval_status": "pending",
         "created_at": now_iso(),
     }
     await db["properties"].insert_one(doc)

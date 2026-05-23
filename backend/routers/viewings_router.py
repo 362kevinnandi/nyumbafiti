@@ -24,9 +24,15 @@ def _generate_password(length: int = 10) -> str:
 
 @router.get("/public/listings")
 async def public_listings(city: Optional[str] = None, max_rent: Optional[float] = None):
-    """List all vacant units across all landlords (public)."""
+    """List all vacant units across all admin-approved properties (public)."""
     db = get_db()
-    query: dict = {"occupied": False}
+    approved_props = await db["properties"].find(
+        {"approval_status": "approved"}, {"_id": 0, "id": 1}
+    ).to_list(2000)
+    approved_prop_ids = {p["id"] for p in approved_props}
+    if not approved_prop_ids:
+        return []
+    query: dict = {"occupied": False, "property_id": {"$in": list(approved_prop_ids)}}
     if max_rent:
         query["rent_amount"] = {"$lte": max_rent}
     units = await db["units"].find(query, {"_id": 0}).to_list(500)
@@ -75,8 +81,8 @@ async def public_listing_detail(unit_id: str):
     if not unit:
         raise HTTPException(404, "Listing not found or no longer available")
     prop = await db["properties"].find_one({"id": unit["property_id"]}, {"_id": 0})
-    if not prop:
-        raise HTTPException(404, "Property not found")
+    if not prop or prop.get("approval_status") != "approved":
+        raise HTTPException(404, "Listing not found or no longer available")
     landlord = await db["users"].find_one(
         {"id": unit["landlord_id"]}, {"_id": 0, "full_name": 1}
     )

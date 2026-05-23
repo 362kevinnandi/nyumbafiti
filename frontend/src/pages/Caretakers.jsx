@@ -90,7 +90,11 @@ export default function CaretakersPage() {
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
-              <div className="font-display font-bold text-lg">{c.full_name}</div>
+              <div className="font-display font-bold text-lg flex items-center gap-2">
+                {c.full_name}
+                {c.approval_status === "pending" && <span className="badge-status bg-amber-50 text-amber-700 text-[10px]">Pending</span>}
+                {c.approval_status === "rejected" && <span className="badge-status bg-red-50 text-red-700 text-[10px]">Rejected</span>}
+              </div>
               <div className="text-xs text-zinc-500">{c.email}</div>
               <div className="text-xs text-zinc-600 font-mono-num mt-2">{c.phone}</div>
             </div>

@@ -22,6 +22,7 @@ from routers.properties_router import router as properties_router  # noqa: E402
 from routers.users_router import router as users_router  # noqa: E402
 from routers.viewings_router import router as viewings_router  # noqa: E402
 from routers.admin_router import router as admin_router  # noqa: E402
+from routers.oversight_router import router as oversight_router  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,9 +35,29 @@ logger = logging.getLogger("rental-mgmt")
 async def lifespan(app: FastAPI):
     await ensure_indexes()
     await _seed_admin()
+    await _migrate_approval_status()
     logger.info("Indexes ensured. App ready.")
     yield
     get_client().close()
+
+
+async def _migrate_approval_status():
+    """Backfill approval_status='approved' for pre-existing rows so legacy demo data works."""
+    db = get_db()
+    prop_res = await db["properties"].update_many(
+        {"approval_status": {"$exists": False}},
+        {"$set": {"approval_status": "approved"}},
+    )
+    user_res = await db["users"].update_many(
+        {"role": {"$in": ["tenant", "caretaker"]}, "approval_status": {"$exists": False}},
+        {"$set": {"approval_status": "approved"}},
+    )
+    if prop_res.modified_count or user_res.modified_count:
+        logger.info(
+            "Migrated approval_status on %d properties and %d users",
+            prop_res.modified_count,
+            user_res.modified_count,
+        )
 
 
 async def _seed_admin():
@@ -192,6 +213,7 @@ api_router.include_router(payments_router)
 api_router.include_router(issues_router)
 api_router.include_router(viewings_router)
 api_router.include_router(admin_router)
+api_router.include_router(oversight_router)
 
 app.include_router(api_router)
 

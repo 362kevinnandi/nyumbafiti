@@ -116,6 +116,23 @@ async def platform_stats(_: dict = Depends(require_role("admin"))):
     )
     pending_viewings = await db["viewings"].count_documents({"status": "pending_payment"})
 
+    # Pending approvals across resources
+    pending_properties = await db["properties"].count_documents({"approval_status": "pending"})
+    pending_tenants = await db["users"].count_documents(
+        {"role": "tenant", "approval_status": "pending"}
+    )
+    pending_caretakers = await db["users"].count_documents(
+        {"role": "caretaker", "approval_status": "pending"}
+    )
+
+    # Total arrears across the platform
+    arrears_pipe = [
+        {"$match": {"status": {"$in": ["pending", "partial", "overdue"]}}},
+        {"$group": {"_id": None, "total": {"$sum": {"$subtract": ["$amount", "$amount_paid"]}}}},
+    ]
+    arrears_agg = await db["bills"].aggregate(arrears_pipe).to_list(1)
+    total_arrears = arrears_agg[0]["total"] if arrears_agg else 0
+
     return {
         "users_by_role": users_by_role,
         "total_users": sum(users_by_role.values()),
@@ -129,6 +146,11 @@ async def platform_stats(_: dict = Depends(require_role("admin"))):
         "successful_payments_count": totals.get("count", 0),
         "open_issues": open_issues,
         "pending_viewings": pending_viewings,
+        "pending_property_approvals": pending_properties,
+        "pending_tenant_approvals": pending_tenants,
+        "pending_caretaker_approvals": pending_caretakers,
+        "pending_approvals_total": pending_properties + pending_tenants + pending_caretakers,
+        "total_arrears": total_arrears,
         "by_purpose": by_purpose,
         "current_commission_rate": await get_commission_rate(),
     }

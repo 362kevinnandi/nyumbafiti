@@ -78,6 +78,24 @@ export default function BillsPage() {
 
   return (
     <div data-testid="bills-page">
+      {user.role === "tenant" && user.approval_status === "pending" && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-md p-4 flex items-start gap-3" data-testid="tenant-pending-banner">
+          <div className="w-2 h-2 rounded-full bg-amber-500 mt-2 animate-pulse" />
+          <div>
+            <div className="font-display font-bold text-amber-900">Account pending admin verification</div>
+            <div className="text-sm text-amber-800 mt-1 leading-relaxed">
+              Your landlord has added you, but you can't pay bills via M-Pesa until our platform admin verifies your account.
+              This usually takes less than 24 hours and protects you from fraudulent billing.
+            </div>
+          </div>
+        </div>
+      )}
+      {user.role === "tenant" && user.approval_status === "rejected" && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4" data-testid="tenant-rejected-banner">
+          <div className="font-display font-bold text-red-900">Account rejected</div>
+          <div className="text-sm text-red-800 mt-1">Your account has been rejected by the platform admin. Please contact support for help.</div>
+        </div>
+      )}
       <PageHeader
         overline={isLandlord ? "Billing" : "My Account"}
         title={isLandlord ? "Bills & Invoices" : "My Bills"}

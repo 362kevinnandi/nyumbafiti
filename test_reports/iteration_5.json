@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 6 retest: ran full backend pytest suite (100/100 passing) and validated all critical admin oversight + landlord approval flows in the frontend. The two backend fixes (_migrate_approval_status lifespan hook + /public/listings approval_status='approved' filter) are working correctly. Three pre-existing test files (test_marketplace_viewings, test_rental_management) had stale assertions because the new approval-gating system blocks unapproved tenants/caretakers/properties by default; per instructions I fixed the TESTS (not the implementation) by inserting admin-approval steps in each test setup. Result: 100% backend pass (18 admin + 20 marketplace + 27 oversight + 35 rental). Frontend e2e: admin login -> /admin with 8 sidebar items, /admin/approvals lists 3 pending properties with working Approve/Reject buttons, /admin/bills shows 4 summary tiles (Total Unpaid Balance, Total Collected, Unpaid Bills, Settled Bills) + 3 tabs (Unpaid/Paid/All), /admin/issues shows enriched issue cards with 'Open discussion' button opening a thread dialog with role-tagged messages and a 'Post as platform admin' input. Landlord /properties page renders 'Awaiting admin approval' badge on pending properties and 'REJECTED' badge on rejected ones.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_oversight.py",
+    "/app/backend/tests/test_marketplace_viewings.py",
+    "/app/backend/tests/test_rental_management.py",
+    "/app/backend/tests/test_admin.py",
+    "/app/test_reports/pytest/iteration_6_final.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "test_oversight.py is well-structured with logical test class grouping (TestPublicListingGating, TestTenantApprovalGating, TestCaretakerApprovalGating, TestPropertyApprovalFlow, TestAdminOversightViews, TestAdminStatsFields, TestLegacyDataMigration, TestOversightAuthorization). All 27 tests pass cleanly.",
+    "The legacy data migration (_migrate_approval_status) runs on every startup which is idempotent but logs even when 0 docs are migrated. Consider only logging when count > 0 to reduce log noise.",
+    "Pre-existing test files (test_rental_management.py, test_marketplace_viewings.py) had no concept of admin-approval - they assumed everything was instantly usable. After the approval-gating feature these tests required an admin-approves-test-entities step injected mid-flow. This is the correct fix per the iteration brief, but the main agent should consider whether the default 'pending' state should be configurable (e.g., a backend flag or admin auto-approval setting) so seed data and dev workflows don't require manual approval each time.",
+    "Admin Bills page uses 'Total Unpaid' / 'Total Collected' / 'Unpaid Bills' / 'Settled Bills' labels with consistent tile design (verified visually).",
+    "Issue thread dialog labels each message with the user's role in parentheses (tenant/landlord/caretaker) but the admin role badge for posted messages was not explicitly verified in screenshots since the existing issue thread had no admin messages yet. The 'Post as platform admin...' input is correctly present and prominent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_marketplace_viewings.py (added admin approval of test property in setup so /public/listings tests see it)",
+    "/app/backend/tests/test_rental_management.py (added new test_admin_approves_test_entities test that approves the test property+tenant+caretaker so subsequent payment/issue/dashboard tests work under the new approval-gating)"
+  ],
+  "success_rate": {"backend": "100% (100/100)", "frontend": "100% on all critical admin oversight + landlord approval flows"},
+  "test_credentials": "admin@nyumbaos.co.ke / admin123 (admin), land@demo.com / demo123 (landlord). Confirmed working.",
+  "seed_data_creation": "Each test run creates a fresh landlord, property (which is then admin-approved), units, tenant (admin-approved), caretaker (admin-approved), and one paid bill. Test data is prefixed TEST_ and cleaned up by test_zz_cleanup at the end of each suite.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 100 backend tests pass. The approval-gating feature is fully integrated: new tenants/caretakers default to approval_status='pending' and are blocked from payments (403) / issue actions (403) respectively until admin approves via POST /api/admin/approvals/user/{user_id} {approve:true}. New properties default to approval_status='pending' and do not appear in /api/public/listings until POST /api/admin/approvals/property/{property_id} {approve:true}. Existing pre-fix data was migrated to 'approved' via _migrate_approval_status() in the FastAPI lifespan handler. Frontend: admin sidebar has 8 items, all admin oversight pages (/admin/approvals, /admin/bills, /admin/issues, /admin/users, /admin/payments, /admin/payouts, /admin/settings) render correctly. Landlord /properties shows 'Awaiting admin approval' badge on pending and 'REJECTED' badge on rejected properties.",
+  "rca of the issue": "Iter 5 failures were caused by two missing pieces fixed before iter 6: (1) _migrate_approval_status was defined but not wired into the FastAPI lifespan, leaving 6 legacy properties + 5 legacy users without an approval_status field, which silently excluded them from queries that filtered approval_status='approved'; and (2) /api/public/listings did not filter by approval_status, so pending properties leaked into the marketplace. Both fixes verified in code and via 27 passing test_oversight.py assertions. The 11 transient pytest failures observed in this iteration were unrelated to those two fixes and were caused by the new approval-gating feature blocking previously-unconditional flows in pre-existing tests; resolved by adding admin-approval steps to test setup as instructed."
+}

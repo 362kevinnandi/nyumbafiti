@@ -44,14 +44,14 @@ export default function AdminDashboardPage() {
       <PageHeader overline="Super Admin" title="Platform Overview" />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <Stat testId="stat-pending-approvals" label="Pending Approvals" value={stats.pending_approvals_total} accent={stats.pending_approvals_total > 0 ? "red" : undefined} icon={AlertTriangle} sub={`${stats.pending_property_approvals} props · ${stats.pending_tenant_approvals} tenants · ${stats.pending_caretaker_approvals} caretakers`} />
+        <Stat testId="stat-arrears" label="Platform Arrears" value={formatKES(stats.total_arrears)} accent="red" sub="Outstanding tenant balances" icon={AlertTriangle} />
         <Stat testId="stat-commission" label="Commission Earned" value={formatKES(stats.total_commission_earned)} accent="green" sub={`${ratePct}% of all transactions`} icon={Percent} />
         <Stat testId="stat-gross" label="Gross Processed" value={formatKES(stats.total_gross_processed)} icon={TrendingUp} sub={`${stats.successful_payments_count} successful payments`} />
         <Stat testId="stat-net-payouts" label="Owed to Landlords" value={formatKES(stats.total_net_to_landlords)} icon={Wallet} />
         <Stat testId="stat-users" label="Total Users" value={stats.total_users} icon={Users} sub={`${stats.users_by_role.landlord} landlords · ${stats.users_by_role.tenant} tenants`} />
         <Stat testId="stat-properties" label="Properties" value={stats.properties} icon={Building} />
-        <Stat testId="stat-units" label="Units" value={stats.units} sub={`${stats.occupied_units} occupied · ${stats.vacant_units} vacant`} icon={Home} />
         <Stat testId="stat-open-issues" label="Open Issues" value={stats.open_issues} icon={AlertTriangle} />
-        <Stat testId="stat-pending-viewings" label="Pending Viewings" value={stats.pending_viewings} icon={AlertTriangle} />
       </div>
 
       <div className="bg-white border border-zinc-200 rounded-md p-6">

@@ -31,6 +31,7 @@ async def create_tenant(
         "password_hash": hash_password(payload.password),
         "landlord_id": user["id"],
         "unit_id": payload.unit_id,
+        "approval_status": "pending",
         "created_at": now_iso(),
     }
     try:
@@ -106,6 +107,7 @@ async def create_caretaker(
         "password_hash": hash_password(payload.password),
         "landlord_id": user["id"],
         "unit_id": None,
+        "approval_status": "pending",
         "created_at": now_iso(),
     }
     try:

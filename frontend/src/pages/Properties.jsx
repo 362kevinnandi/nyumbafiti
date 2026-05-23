@@ -150,6 +150,12 @@ export default function PropertiesPage() {
                 <div key={p.id} className="bg-white border border-zinc-200 rounded-md overflow-hidden card-hover" data-testid={`property-card-${p.id}`}>
                   <div className="relative h-44 bg-zinc-100" style={{ backgroundImage: `url(${p.image_url || HERO_IMG})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
                     <div className="absolute top-3 right-3 bg-white/95 backdrop-blur px-2 py-0.5 rounded-sm text-xs font-mono-num font-semibold">{p.units_count} units</div>
+                    {p.approval_status === "pending" && (
+                      <div className="absolute top-3 left-3 bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider">Awaiting admin approval</div>
+                    )}
+                    {p.approval_status === "rejected" && (
+                      <div className="absolute top-3 left-3 bg-red-100 text-red-800 border border-red-200 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider">Rejected</div>
+                    )}
                   </div>
                   <div className="p-5">
                     <div className="font-display font-bold text-lg mb-1 tracking-tight">{p.name}</div>

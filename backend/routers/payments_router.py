@@ -89,6 +89,16 @@ async def initiate_payment(
     payload: PaymentInitiate, user: dict = Depends(require_role("tenant"))
 ):
     db = get_db()
+    if user.get("approval_status") == "pending":
+        raise HTTPException(
+            403,
+            "Your account is pending admin verification. You cannot make payments yet — please contact your landlord or platform admin.",
+        )
+    if user.get("approval_status") == "rejected":
+        raise HTTPException(
+            403,
+            "Your account has been rejected by platform admin. Please contact support.",
+        )
     bill = await db["bills"].find_one({"id": payload.bill_id, "tenant_id": user["id"]})
     if not bill:
         raise HTTPException(404, "Bill not found")
