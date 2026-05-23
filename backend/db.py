@@ -28,3 +28,6 @@ async def ensure_indexes():
     await db["bills"].create_index([("property_id", 1), ("period", 1)])
     await db["units"].create_index("property_id")
     await db["issues"].create_index([("status", 1), ("created_at", -1)])
+    await db["viewings"].create_index([("landlord_id", 1), ("status", 1)])
+    await db["viewings"].create_index("prospect_id")
+    await db["units"].create_index([("occupied", 1), ("rent_amount", 1)])

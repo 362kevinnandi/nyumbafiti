@@ -13,12 +13,14 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 
-Role = Literal["landlord", "tenant", "caretaker"]
+Role = Literal["landlord", "tenant", "caretaker", "prospect"]
 BillType = Literal["rent", "water", "electricity", "service", "other"]
 BillStatus = Literal["pending", "partial", "paid", "overdue"]
 PaymentStatus = Literal["pending", "succeeded", "failed", "cancelled"]
 IssueStatus = Literal["open", "in_progress", "resolved", "closed"]
 IssuePriority = Literal["low", "medium", "high", "urgent"]
+ViewingStatus = Literal["pending_payment", "scheduled", "completed", "cancelled"]
+VIEWING_FEE_KES = 200
 
 
 # ============ USER ============
@@ -188,5 +190,35 @@ class Issue(BaseModel):
     priority: IssuePriority = "medium"
     status: IssueStatus = "open"
     assigned_to: Optional[str] = None  # caretaker id
+    created_at: str
+    updated_at: str
+
+
+# ============ VIEWING ============
+class ViewingCreate(BaseModel):
+    unit_id: str
+    prospect_name: str
+    prospect_email: EmailStr
+    prospect_phone: str
+    scheduled_date: str  # ISO date YYYY-MM-DD
+    scheduled_time: str  # HH:MM
+    notes: Optional[str] = ""
+
+
+class Viewing(BaseModel):
+    id: str
+    unit_id: str
+    property_id: str
+    landlord_id: str
+    prospect_id: str
+    prospect_name: str
+    prospect_email: str
+    prospect_phone: str
+    scheduled_date: str
+    scheduled_time: str
+    notes: str = ""
+    status: ViewingStatus = "pending_payment"
+    viewing_fee: float = VIEWING_FEE_KES
+    payment_id: Optional[str] = None
     created_at: str
     updated_at: str

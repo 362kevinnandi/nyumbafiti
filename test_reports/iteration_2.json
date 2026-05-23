@@ -1,0 +1,65 @@
+{
+  "summary": "Marketplace + viewings feature tested end-to-end. Backend: 19/20 new pytest tests passed in /app/backend/tests/test_marketplace_viewings.py (public listings, max_rent filter, listing detail, viewing-fee=200, demo M-Pesa callback transitions viewing to 'scheduled', prospect auto-create + password return on first booking only, contact reveal only post-payment, prospect login + /my-viewings, landlord /viewings, role-based 403, rebook-same-email reuses prospect with no password, occupied-unit 404, prospect dashboard stats, conflicting-email 400, invalid phone 400/422). 1 backend test FAILED revealing a spec violation. Frontend: marketplace page loads with NO auth, listing cards render, detail page shows fee KES 200, dialog opens, form submits. CRITICAL frontend crash discovered: any backend 422 response (Pydantic error with list-of-objects detail) is passed directly to sonner toast.error(), which renders the object as a React child and CRASHES the entire app (red overlay 'Objects are not valid as a React child'). Re-tested twice, fully reproducible.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/auth/register",
+        "issue": "Public registration with role='prospect' is ACCEPTED (returns 200 + token). Per spec, prospects must only be auto-created via the booking flow. Auth router rejects 'tenant' and 'caretaker' but not 'prospect'. This lets anyone create a prospect account bypassing the M-Pesa-paid viewing booking, defeating the gating mechanism.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/public/viewings",
+        "issue": "Pydantic 422 errors are returned as a list of objects in 'detail'. Frontend renders this directly causing a crash. Either coerce backend to return a string 'detail' for booking endpoint (more user-friendly) or fix on frontend. Suggested: keep FastAPI default but ensure FE stringifies."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "MarketplaceDetail.jsx -> BookViewingDialog.submit (line ~170)",
+        "issue": "toast.error(err.response?.data?.detail || ...) — when backend returns 422, detail is an Array<{type, loc, msg, input, url}>. Sonner tries to render the array as React children, throwing 'Objects are not valid as a React child' and unmounting the whole app. User cannot recover without a hard refresh. Same pattern likely exists elsewhere (any place that surfaces backend errors via toast). Recommend a helper: `const errMsg = (e) => { const d = e?.response?.data?.detail; if (typeof d === 'string') return d; if (Array.isArray(d)) return d.map(x => x?.msg || JSON.stringify(x)).join('; '); return 'Something went wrong'; };` then `toast.error(errMsg(err))`.",
+        "selector": "[data-testid=\"booking-submit-button\"]",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Book Viewing -> Pay -> Confirmation",
+        "issue": "Could not validate the confirmation panel end-to-end via UI because every UI submission attempt hit 422 from the backend (then crashed). curl with identical-looking payload (unit_id, prospect_email, prospect_phone='0712345678', scheduled_date='2026-12-15', scheduled_time='10:30', notes='') returns 200 and demo callback fires successfully (test_demo_callback_marks_viewing_scheduled passes). So the form is sending a payload field that pydantic rejects (possibly empty scheduled_date when min-validation blocks change, or stale form state). Main agent should reproduce by opening DevTools Network tab during a booking submit and inspect the request body + the 422 response. The catastrophic React crash hides the underlying root cause from end users.",
+        "affected_selectors": ["[data-testid=\"booking-form\"]", "[data-testid=\"booking-confirmed\"]"]
+      }
+    ],
+    "design_issues": [
+      {"screen": "MarketplaceDetail booking dialog", "issues": ["Date input uses native browser picker with min=today; rejecting past dates is fine, but failures appear as a native tooltip and not via the form's error UI."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_marketplace_viewings.py",
+    "/app/test_reports/pytest/marketplace_results.xml"
+  ],
+  "action_items": [
+    "[HIGH] Reject role='prospect' in /api/auth/register (mirror the existing tenant/caretaker rejection). Add a backend test that POST /api/auth/register with role=prospect returns 400.",
+    "[CRITICAL] Fix toast.error rendering of FastAPI 422 detail arrays in MarketplaceDetail.jsx (BookViewingDialog.submit). Apply the same fix across other pages that do `toast.error(err.response.data.detail)` (search globally) since any 422 anywhere will crash the app. Recommend a `formatApiError(err)` util in /app/frontend/src/lib/api.js.",
+    "[MEDIUM] Investigate why the UI booking form submission hits 422 even with seemingly-valid data. curl with the same JSON works. Possibly the date input's value isn't being committed to React state on certain interactions, or a hidden field is missing. After fixing the toast crash, the user-visible error message will reveal the offending field."
+  ],
+  "critical_code_review_comments": [
+    "auth_router.register: missing the role=='prospect' rejection branch. Spec says prospects are booking-flow-only.",
+    "viewings_router.book_viewing returns the auto-generated password in cleartext in the JSON response. This is by-design per the spec ('only on first time'), but the response goes over TLS and is also persisted in browser history via React state. Consider returning it ONLY when client demonstrates email ownership (out of scope for MVP).",
+    "Demo callback works via in-process asyncio.create_task. Note: if uvicorn is restarted between stk_push and the 4s timer, the viewing stays in pending_payment forever. Production behavior is fine (real callback comes from Safaricom).",
+    "viewings_router.public_listings uses `if max_rent:` which would silently ignore max_rent=0. Edge-case but minor.",
+    "viewings_router.book_viewing inserts the viewing first, THEN calls stk_push. If stk_push raises (non-demo) the viewing record is left orphaned with status='pending_payment'. Consider deleting the viewing on stk_push failure, or having a periodic sweeper.",
+    "Frontend has NO global error boundary — a single bad toast.error crashes the whole app. Add an <ErrorBoundary> wrapper in App.js."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_marketplace_viewings.py"
+  ],
+  "success_rate": {"backend": "95% (19/20 marketplace tests + previous 34/34 still intact)", "frontend": "Marketplace browse works. Booking submit consistently triggers 422 -> app crash. Cannot validate confirmation panel via UI."},
+  "test_credentials": "Existing landlord: land@demo.com / demo123. Test marketplace data left in place: 3 vacant units already exist in DB (A-101 Riverside, A-202 Riverside, B-7 Kilimani Heights) from prev iteration; new test file uses TEST_mkt_* prefixed data and cleans up via test_zz_cleanup. A few demo-booking prospects (uihappy_<ts>@demo.com, ui_prospect_<ts>@demo.com, curl_<ts>@y.com) remain in DB from frontend testing — harmless.",
+  "seed_data_creation": "test_marketplace_viewings.py creates landlord+caretaker+property+3 units+1 tenant with TEST_ prefix and UNIQ suffix; cleans up after suite.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Two bugs to verify after fix: (1) POST /api/auth/register {role:'prospect'} returns 400. The pytest test_register_prospect_role_rejected in /app/backend/tests/test_marketplace_viewings.py already covers this. (2) Frontend booking flow no longer crashes on 422 — open /marketplace -> click any listing -> Book Viewing -> intentionally submit invalid data (e.g., past date or empty phone) and verify a user-friendly toast appears AND the app remains usable. Then submit valid data and confirm the booking-confirmed panel renders with property_address, caretaker phone, prospect credentials, and DEMO M-Pesa receipt. The 25s polling window is sufficient (demo callback fires in ~4s). Note: backend tests in test_rental_management.py (34) and test_marketplace_viewings.py (20 minus 1 expected fail until prospect rejection is added) form the regression suite. Run with: pytest /app/backend/tests/ -v.",
+  "rca of the issue": "RCA for frontend crash: MarketplaceDetail.jsx submit() does `toast.error(err.response?.data?.detail || 'Failed to initiate booking')`. FastAPI's default 422 response shape is `{detail: [{type, loc, msg, input, url}, ...]}` — an Array. Sonner's toast.error accepts a React node and renders the message into JSX. React throws 'Objects are not valid as a React child' because the array contains plain objects rather than ReactNodes. The error is thrown during render → no error boundary → whole React tree unmounts → CRA dev overlay shown. Mitigation: stringify the detail before passing to toast (see action_items above). RCA for prospect-register: auth_router.register only checks role=='tenant' and role=='caretaker'; the new 'prospect' role was added to models.Role but the gate was never updated."
+}

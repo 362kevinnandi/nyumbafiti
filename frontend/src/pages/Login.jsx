@@ -133,6 +133,18 @@ export default function LoginPage() {
             </Link>
           </div>
 
+          <Link
+            to="/marketplace"
+            className="block border border-zinc-200 bg-white rounded-md p-3 text-sm hover:border-zinc-300 group"
+            data-testid="marketplace-link-from-login"
+          >
+            <div className="overline text-zinc-500 mb-1">Looking for a home?</div>
+            <div className="flex items-center justify-between">
+              <span className="font-display font-bold text-zinc-950">Browse verified Nairobi listings</span>
+              <span className="text-zinc-400 group-hover:text-zinc-950 group-hover:translate-x-0.5 transition-all">→</span>
+            </div>
+          </Link>
+
           <div className="border border-zinc-200 bg-white rounded-md p-3 text-xs text-zinc-600 space-y-1">
             <div className="overline text-zinc-500">Tenants / Caretakers</div>
             <p>Accounts are created by your landlord. Use the credentials they shared with you.</p>

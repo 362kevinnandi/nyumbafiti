@@ -20,6 +20,7 @@ from routers.issues_router import router as issues_router  # noqa: E402
 from routers.payments_router import router as payments_router  # noqa: E402
 from routers.properties_router import router as properties_router  # noqa: E402
 from routers.users_router import router as users_router  # noqa: E402
+from routers.viewings_router import router as viewings_router  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -110,7 +111,24 @@ async def dashboard_stats(user: dict = Depends(get_current_user)):
             "open_issues": open_issues,
             "paid_bills": paid_bills,
         }
-    else:  # caretaker
+    else:  # caretaker or prospect
+        if user["role"] == "prospect":
+            total = await db["viewings"].count_documents({"prospect_id": user["id"]})
+            scheduled = await db["viewings"].count_documents(
+                {"prospect_id": user["id"], "status": "scheduled"}
+            )
+            pending = await db["viewings"].count_documents(
+                {"prospect_id": user["id"], "status": "pending_payment"}
+            )
+            completed = await db["viewings"].count_documents(
+                {"prospect_id": user["id"], "status": "completed"}
+            )
+            return {
+                "total_viewings": total,
+                "scheduled": scheduled,
+                "pending": pending,
+                "completed": completed,
+            }
         assigned = await db["issues"].count_documents(
             {"assigned_to": user["id"], "status": {"$in": ["open", "in_progress"]}}
         )
@@ -133,6 +151,7 @@ api_router.include_router(users_router)
 api_router.include_router(bills_router)
 api_router.include_router(payments_router)
 api_router.include_router(issues_router)
+api_router.include_router(viewings_router)
 
 app.include_router(api_router)
 

@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import {
   Building2, LayoutDashboard, Home, Users, FileText,
-  CreditCard, Wrench, HardHat, LogOut, ChevronRight,
+  CreditCard, Wrench, HardHat, LogOut, ChevronRight, Calendar,
 } from "lucide-react";
 
 const NAV_BY_ROLE = {
@@ -14,6 +14,7 @@ const NAV_BY_ROLE = {
     { to: "/bills", label: "Bills", icon: FileText },
     { to: "/payments", label: "Payments", icon: CreditCard },
     { to: "/issues", label: "Issues", icon: Wrench },
+    { to: "/viewings", label: "Viewings", icon: Calendar },
   ],
   tenant: [
     { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -24,6 +25,10 @@ const NAV_BY_ROLE = {
   caretaker: [
     { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
     { to: "/issues", label: "Tickets", icon: Wrench },
+  ],
+  prospect: [
+    { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
+    { to: "/viewings", label: "My Viewings", icon: Calendar },
   ],
 };
 

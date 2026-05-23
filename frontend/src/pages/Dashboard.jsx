@@ -74,11 +74,18 @@ export default function DashboardPage() {
           <StatCard testId="stat-paid-bills" label="Bills Settled" value={stats.paid_bills} accent="green" icon={CheckCircle2} />
           <StatCard testId="stat-open-issues" label="Open Issues" value={stats.open_issues} icon={Wrench} />
         </div>
-      ) : (
+      ) : user.role === "caretaker" ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <StatCard testId="stat-assigned" label="My Open Tickets" value={stats.assigned_open} icon={Wrench} />
           <StatCard testId="stat-unassigned" label="Unassigned (Available)" value={stats.unassigned_open} icon={AlertTriangle} accent="red" />
           <StatCard testId="stat-resolved" label="Resolved" value={stats.resolved} accent="green" icon={CheckCircle2} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard testId="stat-total-viewings" label="Total Bookings" value={stats.total_viewings} icon={Home} />
+          <StatCard testId="stat-scheduled" label="Scheduled" value={stats.scheduled} accent="green" icon={CheckCircle2} />
+          <StatCard testId="stat-pending" label="Awaiting Payment" value={stats.pending} icon={AlertTriangle} />
+          <StatCard testId="stat-completed" label="Completed" value={stats.completed} icon={CheckCircle2} />
         </div>
       )}
 
@@ -104,6 +111,13 @@ export default function DashboardPage() {
               <TipCard title="Pick up unassigned tickets" body="Tickets without an owner are waiting for you." />
               <TipCard title="Update status in real time" body="Mark issues in progress so tenants stay informed." />
               <TipCard title="Communicate clearly" body="Use the issue messages to coordinate visit times." />
+            </>
+          )}
+          {user.role === "prospect" && (
+            <>
+              <TipCard title="Track your viewings" body="See upcoming appointments and caretaker contact details in one place." />
+              <TipCard title="Browse more listings" body="Hundreds of verified Nairobi units. Book additional viewings anytime." />
+              <TipCard title="Same fee, same flow" body="Every viewing is KES 200 — secured and tracked." />
             </>
           )}
         </div>

@@ -13,7 +13,7 @@ router = APIRouter(tags=["payments"])
 
 
 async def _process_callback_payload(payload: dict):
-    """Apply M-Pesa callback to payment + bill records."""
+    """Apply M-Pesa callback to payment + bill/viewing records."""
     db = get_db()
     try:
         stk = payload["Body"]["stkCallback"]
@@ -56,8 +56,16 @@ async def _process_callback_payload(payload: dict):
 
     await db["payments"].update_one({"id": payment["id"]}, {"$set": update})
 
-    # if success, update bill
-    if result_code == 0:
+    if result_code != 0:
+        return
+
+    # SUCCESS: route based on purpose
+    if payment.get("viewing_id"):
+        await db["viewings"].update_one(
+            {"id": payment["viewing_id"]},
+            {"$set": {"status": "scheduled", "updated_at": now_iso()}},
+        )
+    elif payment.get("bill_id"):
         bill = await db["bills"].find_one({"id": payment["bill_id"]})
         if bill:
             new_paid = bill["amount_paid"] + confirmed_amount
