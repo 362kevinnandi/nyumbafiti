@@ -1,0 +1,192 @@
+"""Pydantic models for the Nairobi Rental Management System."""
+from datetime import datetime, timezone
+from typing import Literal, Optional, List
+from pydantic import BaseModel, Field, EmailStr, ConfigDict
+import uuid
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def new_id() -> str:
+    return str(uuid.uuid4())
+
+
+Role = Literal["landlord", "tenant", "caretaker"]
+BillType = Literal["rent", "water", "electricity", "service", "other"]
+BillStatus = Literal["pending", "partial", "paid", "overdue"]
+PaymentStatus = Literal["pending", "succeeded", "failed", "cancelled"]
+IssueStatus = Literal["open", "in_progress", "resolved", "closed"]
+IssuePriority = Literal["low", "medium", "high", "urgent"]
+
+
+# ============ USER ============
+class UserBase(BaseModel):
+    email: EmailStr
+    full_name: str
+    phone: str
+    role: Role
+
+
+class UserRegister(UserBase):
+    password: str = Field(min_length=6)
+
+
+class UserPublic(UserBase):
+    id: str
+    landlord_id: Optional[str] = None
+    unit_id: Optional[str] = None
+    created_at: str
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserPublic
+
+
+# ============ PROPERTY ============
+class PropertyCreate(BaseModel):
+    name: str
+    address: str
+    description: Optional[str] = ""
+    image_url: Optional[str] = ""
+
+
+class Property(PropertyCreate):
+    id: str
+    landlord_id: str
+    units_count: int = 0
+    created_at: str
+
+
+# ============ UNIT ============
+class UnitCreate(BaseModel):
+    property_id: str
+    unit_number: str
+    rent_amount: float
+    bedrooms: int = 1
+    description: Optional[str] = ""
+
+
+class Unit(UnitCreate):
+    id: str
+    landlord_id: str
+    tenant_id: Optional[str] = None
+    occupied: bool = False
+    created_at: str
+
+
+# ============ TENANT ASSIGNMENT ============
+class TenantCreate(BaseModel):
+    email: EmailStr
+    full_name: str
+    phone: str
+    password: str = Field(min_length=6)
+    unit_id: str
+
+
+class CaretakerCreate(BaseModel):
+    email: EmailStr
+    full_name: str
+    phone: str
+    password: str = Field(min_length=6)
+
+
+# ============ BILL ============
+class BillCreate(BaseModel):
+    tenant_id: str
+    unit_id: str
+    bill_type: BillType
+    amount: float
+    period: str  # YYYY-MM
+    due_date: str  # ISO date
+    description: Optional[str] = ""
+
+
+class Bill(BaseModel):
+    id: str
+    landlord_id: str
+    property_id: str
+    unit_id: str
+    tenant_id: str
+    bill_type: BillType
+    amount: float
+    amount_paid: float = 0
+    period: str
+    due_date: str
+    status: BillStatus = "pending"
+    description: str = ""
+    created_at: str
+
+
+# ============ PAYMENT ============
+class PaymentInitiate(BaseModel):
+    bill_id: str
+    phone_number: str  # 2547XXXXXXXX
+    amount: Optional[float] = None  # optional override (partial)
+
+
+class Payment(BaseModel):
+    id: str
+    bill_id: str
+    tenant_id: str
+    landlord_id: str
+    amount: float
+    phone_number: str
+    status: PaymentStatus = "pending"
+    checkout_request_id: Optional[str] = None
+    merchant_request_id: Optional[str] = None
+    mpesa_receipt: Optional[str] = None
+    result_desc: Optional[str] = None
+    idempotency_key: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+# ============ ISSUE ============
+class IssueCreate(BaseModel):
+    title: str
+    description: str
+    priority: IssuePriority = "medium"
+
+
+class IssueUpdate(BaseModel):
+    status: Optional[IssueStatus] = None
+    assigned_to: Optional[str] = None
+    priority: Optional[IssuePriority] = None
+
+
+class IssueMessage(BaseModel):
+    id: str
+    issue_id: str
+    author_id: str
+    author_name: str
+    author_role: Role
+    body: str
+    created_at: str
+
+
+class IssueMessageCreate(BaseModel):
+    body: str
+
+
+class Issue(BaseModel):
+    id: str
+    landlord_id: str
+    tenant_id: str
+    unit_id: str
+    property_id: str
+    title: str
+    description: str
+    priority: IssuePriority = "medium"
+    status: IssueStatus = "open"
+    assigned_to: Optional[str] = None  # caretaker id
+    created_at: str
+    updated_at: str

@@ -1,0 +1,139 @@
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/auth";
+import {
+  Building2, LayoutDashboard, Home, Users, FileText,
+  CreditCard, Wrench, HardHat, LogOut, ChevronRight,
+} from "lucide-react";
+
+const NAV_BY_ROLE = {
+  landlord: [
+    { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
+    { to: "/properties", label: "Properties", icon: Home },
+    { to: "/tenants", label: "Tenants", icon: Users },
+    { to: "/caretakers", label: "Caretakers", icon: HardHat },
+    { to: "/bills", label: "Bills", icon: FileText },
+    { to: "/payments", label: "Payments", icon: CreditCard },
+    { to: "/issues", label: "Issues", icon: Wrench },
+  ],
+  tenant: [
+    { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
+    { to: "/bills", label: "My Bills", icon: FileText },
+    { to: "/payments", label: "Payment History", icon: CreditCard },
+    { to: "/issues", label: "Report Issues", icon: Wrench },
+  ],
+  caretaker: [
+    { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
+    { to: "/issues", label: "Tickets", icon: Wrench },
+  ],
+};
+
+export default function AppShell() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  if (!user) {
+    navigate("/login");
+    return null;
+  }
+  const nav = NAV_BY_ROLE[user.role] || [];
+
+  return (
+    <div className="min-h-screen flex bg-[#FAFAFA]">
+      {/* Sidebar */}
+      <aside className="hidden md:flex w-64 bg-zinc-50 border-r border-zinc-200 flex-col" data-testid="app-sidebar">
+        <div className="px-5 py-5 border-b border-zinc-200">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-zinc-950 rounded-md flex items-center justify-center">
+              <Building2 className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <div className="font-display font-black text-base tracking-tight leading-none">
+                NYUMBA OS
+              </div>
+              <div className="overline text-zinc-500 mt-0.5">
+                {user.role}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <nav className="flex-1 p-3 space-y-1">
+          {nav.map((n) => (
+            <NavLink
+              key={n.to} to={n.to}
+              className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
+              data-testid={`nav-${n.label.toLowerCase().replace(/ /g, "-")}`}
+            >
+              <n.icon className="w-4 h-4" strokeWidth={1.8} />
+              <span>{n.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="p-3 border-t border-zinc-200 space-y-2">
+          <div className="px-2 py-2">
+            <div className="text-sm font-semibold text-zinc-900 truncate">{user.full_name}</div>
+            <div className="text-xs text-zinc-500 truncate">{user.email}</div>
+          </div>
+          <button
+            onClick={logout}
+            className="sidebar-link w-full text-left"
+            data-testid="logout-button"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sign out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-zinc-200 px-4 py-3 z-40 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Building2 className="w-5 h-5" />
+          <span className="font-display font-black text-base">NYUMBA OS</span>
+        </div>
+        <button onClick={logout} className="text-xs font-semibold text-zinc-700">
+          Sign out
+        </button>
+      </div>
+
+      <main className="flex-1 md:ml-0 mt-14 md:mt-0 overflow-x-hidden">
+        {/* Mobile nav scroller */}
+        <div className="md:hidden border-b border-zinc-200 bg-white overflow-x-auto px-2 py-2 flex gap-1">
+          {nav.map((n) => (
+            <NavLink
+              key={n.to} to={n.to}
+              className={({ isActive }) =>
+                `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap ${
+                  isActive ? "bg-zinc-950 text-white" : "text-zinc-600 hover:bg-zinc-100"
+                }`
+              }
+            >
+              <n.icon className="w-3.5 h-3.5" />
+              {n.label}
+            </NavLink>
+          ))}
+        </div>
+
+        <div className="p-4 sm:p-8 max-w-7xl">
+          <Outlet />
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export function PageHeader({ overline, title, action }) {
+  return (
+    <header className="mb-8 flex items-end justify-between gap-4 flex-wrap" data-testid="page-header">
+      <div>
+        <div className="overline text-zinc-500 mb-2 flex items-center gap-1">
+          {overline} <ChevronRight className="w-3 h-3" />
+        </div>
+        <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight leading-none">
+          {title}
+        </h1>
+      </div>
+      {action}
+    </header>
+  );
+}

@@ -1,0 +1,232 @@
+import { useEffect, useState } from "react";
+import { api, formatKES } from "@/lib/api";
+import { PageHeader } from "@/components/AppShell";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import { Plus, Building, Home as HomeIcon, Trash2, MapPin } from "lucide-react";
+
+const HERO_IMG = "https://images.unsplash.com/photo-1630241466166-22e43156d8c0?crop=entropy&cs=srgb&fm=jpg&q=85&w=800";
+
+export default function PropertiesPage() {
+  const [properties, setProperties] = useState([]);
+  const [units, setUnits] = useState([]);
+  const [tab, setTab] = useState("properties");
+  const [open, setOpen] = useState(false);
+  const [unitOpen, setUnitOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", address: "", description: "", image_url: "" });
+  const [unitForm, setUnitForm] = useState({ property_id: "", unit_number: "", rent_amount: 0, bedrooms: 1, description: "" });
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    const [p, u] = await Promise.all([api.get("/properties"), api.get("/units")]);
+    setProperties(p.data);
+    setUnits(u.data);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const createProperty = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post("/properties", form);
+      toast.success("Property created");
+      setOpen(false);
+      setForm({ name: "", address: "", description: "", image_url: "" });
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed");
+    }
+  };
+
+  const createUnit = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post("/units", { ...unitForm, rent_amount: Number(unitForm.rent_amount), bedrooms: Number(unitForm.bedrooms) });
+      toast.success("Unit added");
+      setUnitOpen(false);
+      setUnitForm({ property_id: "", unit_number: "", rent_amount: 0, bedrooms: 1, description: "" });
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed");
+    }
+  };
+
+  const deleteProperty = async (id) => {
+    if (!window.confirm("Delete property and all its units?")) return;
+    await api.delete(`/properties/${id}`);
+    toast.success("Property deleted");
+    load();
+  };
+
+  const deleteUnit = async (id) => {
+    if (!window.confirm("Delete unit?")) return;
+    try {
+      await api.delete(`/units/${id}`);
+      toast.success("Unit deleted");
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed");
+    }
+  };
+
+  return (
+    <div data-testid="properties-page">
+      <PageHeader
+        overline="Portfolio"
+        title="Properties & Units"
+        action={
+          <div className="flex gap-2">
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-zinc-950 hover:bg-zinc-800 rounded-md" data-testid="add-property-button">
+                  <Plus className="w-4 h-4 mr-1.5" /> Add Property
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-md">
+                <DialogHeader>
+                  <DialogTitle className="font-display font-black text-2xl">New Property</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={createProperty} className="space-y-4 mt-2" data-testid="property-form">
+                  <div><Label className="overline">Name</Label><Input required value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} className="mt-1" data-testid="property-name-input" /></div>
+                  <div><Label className="overline">Address</Label><Input required value={form.address} onChange={(e) => setForm({...form, address: e.target.value})} placeholder="e.g. Westlands, Nairobi" className="mt-1" data-testid="property-address-input" /></div>
+                  <div><Label className="overline">Description</Label><Input value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} className="mt-1" /></div>
+                  <div><Label className="overline">Image URL (optional)</Label><Input value={form.image_url} onChange={(e) => setForm({...form, image_url: e.target.value})} className="mt-1" placeholder="https://..." /></div>
+                  <DialogFooter>
+                    <Button type="submit" className="bg-zinc-950 hover:bg-zinc-800" data-testid="property-submit-button">Create</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={unitOpen} onOpenChange={setUnitOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="rounded-md" data-testid="add-unit-button">
+                  <Plus className="w-4 h-4 mr-1.5" /> Add Unit
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-md">
+                <DialogHeader>
+                  <DialogTitle className="font-display font-black text-2xl">New Unit</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={createUnit} className="space-y-4 mt-2" data-testid="unit-form">
+                  <div>
+                    <Label className="overline">Property</Label>
+                    <select required value={unitForm.property_id} onChange={(e) => setUnitForm({...unitForm, property_id: e.target.value})} className="mt-1 w-full h-10 border border-zinc-300 rounded-md px-3 bg-white text-sm" data-testid="unit-property-select">
+                      <option value="">Select property...</option>
+                      {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div><Label className="overline">Unit number</Label><Input required value={unitForm.unit_number} onChange={(e) => setUnitForm({...unitForm, unit_number: e.target.value})} placeholder="e.g. A-101" className="mt-1" data-testid="unit-number-input" /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label className="overline">Rent (KES)</Label><Input required type="number" value={unitForm.rent_amount} onChange={(e) => setUnitForm({...unitForm, rent_amount: e.target.value})} className="mt-1" data-testid="unit-rent-input" /></div>
+                    <div><Label className="overline">Bedrooms</Label><Input required type="number" value={unitForm.bedrooms} onChange={(e) => setUnitForm({...unitForm, bedrooms: e.target.value})} className="mt-1" /></div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" className="bg-zinc-950 hover:bg-zinc-800" data-testid="unit-submit-button">Create</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        }
+      />
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="bg-zinc-100 rounded-md mb-6">
+          <TabsTrigger value="properties" className="rounded-sm" data-testid="tab-properties">Properties ({properties.length})</TabsTrigger>
+          <TabsTrigger value="units" className="rounded-sm" data-testid="tab-units">Units ({units.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="properties">
+          {loading ? <div className="text-zinc-500">Loading...</div> : properties.length === 0 ? (
+            <EmptyState title="No properties yet" body="Create your first property to start managing rentals." />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" data-testid="properties-grid">
+              {properties.map((p) => (
+                <div key={p.id} className="bg-white border border-zinc-200 rounded-md overflow-hidden card-hover" data-testid={`property-card-${p.id}`}>
+                  <div className="relative h-44 bg-zinc-100" style={{ backgroundImage: `url(${p.image_url || HERO_IMG})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                    <div className="absolute top-3 right-3 bg-white/95 backdrop-blur px-2 py-0.5 rounded-sm text-xs font-mono-num font-semibold">{p.units_count} units</div>
+                  </div>
+                  <div className="p-5">
+                    <div className="font-display font-bold text-lg mb-1 tracking-tight">{p.name}</div>
+                    <div className="flex items-start gap-1.5 text-xs text-zinc-500 mb-3">
+                      <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
+                      <span>{p.address}</span>
+                    </div>
+                    {p.description && <div className="text-sm text-zinc-600 mb-3 line-clamp-2">{p.description}</div>}
+                    <div className="flex justify-between items-center pt-3 border-t border-zinc-100">
+                      <div className="overline text-zinc-500">Created {new Date(p.created_at).toLocaleDateString()}</div>
+                      <button onClick={() => deleteProperty(p.id)} className="text-zinc-400 hover:text-red-600 p-1" data-testid={`delete-property-${p.id}`}>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="units">
+          {loading ? <div className="text-zinc-500">Loading...</div> : units.length === 0 ? (
+            <EmptyState title="No units" body="Add your first unit to a property." />
+          ) : (
+            <div className="bg-white border border-zinc-200 rounded-md overflow-hidden" data-testid="units-table">
+              <table className="w-full text-sm">
+                <thead className="bg-zinc-50 border-b border-zinc-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 overline text-zinc-500">Unit</th>
+                    <th className="text-left px-4 py-3 overline text-zinc-500">Property</th>
+                    <th className="text-left px-4 py-3 overline text-zinc-500">Tenant</th>
+                    <th className="text-right px-4 py-3 overline text-zinc-500">Rent</th>
+                    <th className="text-left px-4 py-3 overline text-zinc-500">Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {units.map((u) => {
+                    const prop = properties.find((p) => p.id === u.property_id);
+                    return (
+                      <tr key={u.id} className="border-b border-zinc-100 hover:bg-zinc-50" data-testid={`unit-row-${u.id}`}>
+                        <td className="px-4 py-3 font-semibold">{u.unit_number}</td>
+                        <td className="px-4 py-3 text-zinc-600">{prop?.name || "—"}</td>
+                        <td className="px-4 py-3 text-zinc-600">{u.tenant_name || <span className="text-zinc-400">vacant</span>}</td>
+                        <td className="px-4 py-3 text-right font-mono-num">{formatKES(u.rent_amount)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`badge-status ${u.occupied ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100 text-zinc-600"}`}>
+                            {u.occupied ? "Occupied" : "Vacant"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {!u.occupied && (
+                            <button onClick={() => deleteUnit(u.id)} className="text-zinc-400 hover:text-red-600">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function EmptyState({ title, body }) {
+  return (
+    <div className="text-center py-16 border border-dashed border-zinc-200 rounded-md bg-white">
+      <Building className="w-10 h-10 mx-auto text-zinc-300 mb-3" strokeWidth={1.5} />
+      <div className="font-display font-bold text-lg mb-1">{title}</div>
+      <div className="text-sm text-zinc-500">{body}</div>
+    </div>
+  );
+}
