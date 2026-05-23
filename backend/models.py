@@ -139,8 +139,10 @@ class PaymentInitiate(BaseModel):
 
 class Payment(BaseModel):
     id: str
-    bill_id: str
-    tenant_id: str
+    bill_id: Optional[str] = None
+    viewing_id: Optional[str] = None
+    tenant_id: Optional[str] = None
+    prospect_id: Optional[str] = None
     landlord_id: str
     amount: float
     phone_number: str
@@ -150,6 +152,12 @@ class Payment(BaseModel):
     mpesa_receipt: Optional[str] = None
     result_desc: Optional[str] = None
     idempotency_key: Optional[str] = None
+    purpose: Optional[str] = None
+    commission_rate: Optional[float] = None
+    commission_amount: Optional[float] = None
+    net_to_landlord: Optional[float] = None
+    refund_reason: Optional[str] = None
+    refunded_at: Optional[str] = None
     created_at: str
     updated_at: str
 

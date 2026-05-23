@@ -18,10 +18,13 @@ Welcome to **Nyumba OS**, your Nairobi rental management platform. This document
 ## Quick Tour
 | Role | How they get in | What they can do |
 |---|---|---|
+| **Super Admin** | Pre-seeded on backend startup from env vars | Full platform visibility, suspend users, set commission rate, manage payouts, refund payments |
 | **Landlord** | Self-register at `/register` | Manage properties, units, tenants, caretakers, bills, payments, viewings |
 | **Tenant** | Login created by their landlord | See rent arrears, pay via M-Pesa, report issues |
 | **Caretaker** | Login created by their landlord | Pick up tenant issue tickets, mark resolved |
 | **Prospect** | Auto-created when booking a viewing on the public marketplace | Track viewing appointments |
+
+> **Platform commission**: 3.5% (adjustable from Admin → Settings) is automatically deducted from every successful M-Pesa transaction. The landlord receives the net amount, the platform keeps the fee.
 
 ---
 

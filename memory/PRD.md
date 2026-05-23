@@ -35,7 +35,7 @@ Build a rental management system for tenants in Nairobi where landlords are able
 - Role-scoped data access
 
 ## Implemented (2026-02 / 2026-05)
-- [x] JWT auth, register (landlord), login, /me
+- [x] JWT auth, register (landlord), login, /me, suspended-account lockout
 - [x] Property + Unit CRUD with image, address
 - [x] Tenant onboarding + automatic unit occupancy
 - [x] Caretaker creation
@@ -46,21 +46,23 @@ Build a rental management system for tenants in Nairobi where landlords are able
 - [x] Payment status polling
 - [x] Auto-update bill status: pending/partial/paid/overdue
 - [x] Issue create/assign/status update
-- [x] Issue threaded messages (tenant↔landlord↔caretaker)
+- [x] Issue threaded messages
 - [x] Dashboard stats per role
 - [x] Login/register hero pages
 - [x] Sidebar layout with role-aware nav
-- [x] Property cards with images + unit counts
-- [x] Responsive mobile nav
-- [x] **Public marketplace** at `/marketplace` (no auth required) showing all vacant units
-- [x] **Listing detail page** at `/marketplace/:unitId` with image, description, fee
-- [x] **Paid viewing booking** flow — KES 200 M-Pesa STK Push reveals caretaker/landlord contact after payment
-- [x] **Auto-prospect account creation** with one-time password returned in booking response
-- [x] **Landlord Viewings page** to see incoming requests with prospect contact info
-- [x] **Prospect dashboard + /viewings** to track their own bookings
-- [x] Occupied units **automatically disappear** from public listings
-- [x] Global ErrorBoundary + `formatApiError` helper for safe 422 handling
-- [x] Code-review fixes: useCallback wrapped data loaders, empty catch removed, resp defensive init
+- [x] Public marketplace at `/marketplace`
+- [x] Paid viewing booking (KES 200 M-Pesa STK Push)
+- [x] Auto-prospect account creation with one-time password
+- [x] Landlord viewings page + prospect /viewings tracker
+- [x] Global ErrorBoundary + formatApiError helper
+- [x] **Super-admin role** pre-seeded from `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars
+- [x] **3.5% platform commission** computed on every successful M-Pesa transaction, stored as `commission_amount` + `net_to_landlord` on the Payment record
+- [x] **Admin Platform Overview** showing total commission, gross volume, owed-to-landlords, users, properties, by-source revenue breakdown
+- [x] **Admin User management** with suspend/reactivate (blocks login + invalidates active sessions)
+- [x] **Admin All Payments** with refund flow (rolls back linked bill / cancels linked viewing)
+- [x] **Admin Payouts** per-landlord balance owed + mark-as-paid history
+- [x] **Admin Settings** to change commission rate (stored in `platform_settings` DB collection)
+- [x] **Landlord Payments page** now shows Gross / Fee / Net columns so each landlord sees what they actually receive
 
 ## Prioritized Backlog
 ### P0 / Now
