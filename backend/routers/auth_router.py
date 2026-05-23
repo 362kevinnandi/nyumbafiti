@@ -21,6 +21,11 @@ async def register(payload: UserRegister):
             status_code=400,
             detail="Caretakers are added by landlords. Please register as landlord or contact your landlord.",
         )
+    if payload.role == "prospect":
+        raise HTTPException(
+            status_code=400,
+            detail="Prospect accounts are created automatically when you book a viewing on the marketplace.",
+        )
 
     db = get_db()
     user_doc = {

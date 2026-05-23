@@ -2,6 +2,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Toaster } from "@/components/ui/sonner";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 import LoginPage from "@/pages/Login";
 import RegisterPage from "@/pages/Register";
@@ -34,10 +35,11 @@ function RootRedirect() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Toaster richColors position="top-right" />
-        <Routes>
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <Toaster richColors position="top-right" />
+          <Routes>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/marketplace" element={<MarketplacePage />} />
           <Route path="/marketplace/:unitId" element={<MarketplaceDetailPage />} />
@@ -59,5 +61,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }

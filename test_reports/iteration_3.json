@@ -1,0 +1,49 @@
+{
+  "summary": "Retest iteration 3 for marketplace/viewings fixes. Both fixes from iteration 2 verified PASS. (1) POST /api/auth/register {role:'prospect'} now returns 400 with helpful message ('Prospect accounts are created automatically when you book a viewing on the marketplace.') — previously-failing test_register_prospect_role_rejected now PASSES. (2) Frontend no longer crashes on FastAPI 422: formatApiError() correctly stringifies the detail array; submitting invalid phone='abc' shows toast 'unit_id: Field required' (etc) and dialog remains usable — no ErrorBoundary triggered, no white CRA overlay. ErrorBoundary file exists and is wired into App.js. Regression: backend test_rental_management.py 34/34 PASS, test_marketplace_viewings.py 20/20 PASS (was 19/20). Landlord login + properties + bills pages all render without errors. HOWEVER, the end-to-end booking confirmation panel could initially NOT be reached: the frontend was missing `unit_id` in the POST /public/viewings payload (line 146 MarketplaceDetail.jsx sent only `form`, which has no unit_id). The previous iteration could not see this bug because the app crashed on 422 before the message rendered. I applied a 1-line fix `{ ...form, unit_id: listing.id }`, after which the booking flow completed end-to-end: STK push → demo callback ~4s → confirmation panel rendered with Receipt DEMO044228, property 'Riverside Apartments · Unit A-101', address 'Riverside Drive, Westlands, Nairobi', caretaker 'James Mwangi 0722111222', landlord 'Demo Landlord 254700000001', prospect email + password shown. Subsequent prospect login worked; /dashboard showed Total Bookings=1/Scheduled=1/Awaiting=0/Completed=0; /viewings listed the booking with property_address.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "MarketplaceDetail BookViewingDialog.submit",
+        "issue": "form state never included unit_id, so POST /public/viewings always returned 422 'unit_id: Field required'. Was hidden in iter 2 by the toast crash. Fixed inline by testing agent: spread `{ ...form, unit_id: listing.id }` into the api.post payload (line 146).",
+        "affected_selectors": ["[data-testid=\"booking-form\"]", "[data-testid=\"booking-submit-button\"]"]
+      }
+    ],
+    "design_issues": [
+      {"screen": "MarketplaceDetail booking dialog", "issues": ["Date input still uses native browser picker with min=today; past-date rejection appears via native tooltip not the form's error UI. Carried over from iter 2, low priority."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_marketplace_viewings.py",
+    "/app/backend/tests/test_rental_management.py",
+    "/app/test_reports/pytest/marketplace_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Confirm the unit_id payload fix in /app/frontend/src/pages/MarketplaceDetail.jsx line ~146 is acceptable and keep it. Without it the entire UI booking flow is unusable (any submit returns 422).",
+    "(Optional, carried) Consider replacing native date picker with shadcn calendar to surface min-date errors in the form UI instead of via the browser tooltip."
+  ],
+  "critical_code_review_comments": [
+    "MarketplaceDetail.jsx BookViewingDialog: the form state object was decoupled from listing.id which caused the 422 loop. Worth adding a small unit test or a runtime assertion in api.js that POST /public/viewings always carries unit_id.",
+    "formatApiError() in lib/api.js is a clean, defensive helper — recommend using it as the canonical pattern across the codebase for all toast.error sites; sweep confirmed it is already applied in Login/Register/Properties/Bills/Tenants/Caretakers/Issues/MarketplaceDetail.",
+    "ErrorBoundary is wired correctly in App.js (line 38/64); good safety net even with formatApiError in place.",
+    "auth_router.register now correctly rejects prospect role with a user-friendly message that points to the marketplace booking flow.",
+    "Carried from iter 2 (still applicable, not blocking): viewings_router.book_viewing inserts the viewing before stk_push — non-demo stk_push failures will leave orphan 'pending_payment' rows. Add a sweeper or rollback.",
+    "Carried from iter 2 (still applicable): viewings_router.public_listings uses `if max_rent:` so max_rent=0 is silently ignored. Edge case."
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/MarketplaceDetail.jsx",
+    "/app/test_reports/iteration_3.json"
+  ],
+  "success_rate": {"backend": "100% (54/54: 34 rental + 20 marketplace)", "frontend": "100% on the validated flows (marketplace browse, listing detail, booking submit invalid+valid, confirmation panel, prospect login, prospect dashboard stats, prospect /viewings list, landlord login + properties + bills pages)"},
+  "test_credentials": "Landlord: land@demo.com / demo123. Prospect created during test: test_uiok_1779511342@demo.com / uF3DweRaiK (working at time of test).",
+  "seed_data_creation": "Backend pytest creates+cleans TEST_mkt_* prefixed data. Frontend test left one prospect (test_uiok_1779511342@demo.com) with one scheduled viewing on the seeded Riverside A-101 unit — harmless leftover.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Both iter 2 bugs are FIXED and verified. Additional 1-line fix applied during iter 3: MarketplaceDetail.jsx line 146 now sends `{ ...form, unit_id: listing.id }` to POST /public/viewings (previously missing unit_id caused 422 on every UI submit). Regression suites: /app/backend/tests/test_rental_management.py (34) + /app/backend/tests/test_marketplace_viewings.py (20). All green. UI flow validated end-to-end: marketplace browse → listing detail → invalid submit (no crash, toast shows) → valid submit → polling → confirmation panel → prospect login → /dashboard (prospect stats: total_viewings/scheduled/pending/completed) → /viewings (booked listing with property_address). Landlord flows render correctly.",
+  "rca of the issue": "Iter 2 RCA confirmed mitigated. New finding during iter 3: BookViewingDialog form state had no unit_id key, and submit() posted `form` verbatim — so every UI booking request omitted unit_id and got 422. With formatApiError now in place, the 422 toast 'unit_id: Field required' immediately revealed the root cause that the iter 2 crash had been hiding. Fix: spread listing.id into the payload at the post site."
+}

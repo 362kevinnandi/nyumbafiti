@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, formatKES } from "@/lib/api";
+import { api, formatApiError, formatKES } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -54,7 +54,7 @@ export default function BillsPage() {
       setOpen(false);
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed");
+      toast.error(formatApiError(err, "Failed"));
     }
   };
 
@@ -236,7 +236,7 @@ function PayDialog({ bill, onPaid }) {
       }, 2000);
       setTimeout(() => clearInterval(interval), 90000);
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to initiate");
+      toast.error(formatApiError(err, "Failed to initiate"));
     } finally {
       setSubmitting(false);
     }

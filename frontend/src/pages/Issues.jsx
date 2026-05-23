@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ export default function IssuesPage() {
       setForm({ title: "", description: "", priority: "medium" });
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed");
+      toast.error(formatApiError(err, "Failed"));
     }
   };
 
@@ -61,7 +61,7 @@ export default function IssuesPage() {
       toast.success("Updated");
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed");
+      toast.error(formatApiError(err, "Failed"));
     }
   };
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
+import { formatApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +29,7 @@ export default function RegisterPage() {
       toast.success("Account created. Welcome!");
       navigate("/dashboard");
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Registration failed");
+      toast.error(formatApiError(err, "Registration failed"));
     } finally {
       setLoading(false);
     }

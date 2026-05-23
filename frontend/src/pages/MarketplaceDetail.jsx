@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, formatKES } from "@/lib/api";
+import { api, formatApiError, formatKES } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -143,7 +143,7 @@ function BookViewingDialog({ listing, open, setOpen }) {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const r = await api.post("/public/viewings", form);
+      const r = await api.post("/public/viewings", { ...form, unit_id: listing.id });
       setViewingId(r.data.viewing_id);
       if (r.data.prospect_password) {
         setCredentials({ email: r.data.prospect_email, password: r.data.prospect_password });
@@ -167,7 +167,7 @@ function BookViewingDialog({ listing, open, setOpen }) {
       }, 2000);
       setTimeout(() => clearInterval(interval), 120000);
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to initiate booking");
+      toast.error(formatApiError(err, "Failed to initiate booking"));
     } finally {
       setSubmitting(false);
     }

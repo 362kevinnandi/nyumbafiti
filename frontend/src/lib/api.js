@@ -36,3 +36,31 @@ export const formatKES = (n) => {
   const num = Number(n || 0);
   return "KES " + num.toLocaleString("en-KE", { maximumFractionDigits: 0 });
 };
+
+/**
+ * Safely turn an axios error into a string for use in toast messages.
+ * Handles FastAPI's 422 shape `{detail: [{msg, loc, ...}, ...]}` which would
+ * otherwise crash React if passed directly to a renderer.
+ */
+export const formatApiError = (err, fallback = "Something went wrong") => {
+  const d = err?.response?.data?.detail;
+  if (!d) return err?.message || fallback;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) {
+    return d
+      .map((x) => {
+        if (typeof x === "string") return x;
+        if (x?.msg) {
+          const loc = Array.isArray(x.loc) ? x.loc.slice(-1)[0] : "";
+          return loc ? `${loc}: ${x.msg}` : x.msg;
+        }
+        return JSON.stringify(x);
+      })
+      .join("; ");
+  }
+  try {
+    return JSON.stringify(d);
+  } catch {
+    return fallback;
+  }
+};

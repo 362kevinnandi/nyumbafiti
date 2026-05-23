@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, formatApiError } from "@/lib/api";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +30,7 @@ export default function CaretakersPage() {
       setForm({ email: "", full_name: "", phone: "", password: "" });
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed");
+      toast.error(formatApiError(err, "Failed"));
     }
   };
 

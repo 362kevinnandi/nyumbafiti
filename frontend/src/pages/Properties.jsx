@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, formatKES } from "@/lib/api";
+import { api, formatApiError, formatKES } from "@/lib/api";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +38,7 @@ export default function PropertiesPage() {
       setForm({ name: "", address: "", description: "", image_url: "" });
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed");
+      toast.error(formatApiError(err, "Failed"));
     }
   };
 
@@ -51,7 +51,7 @@ export default function PropertiesPage() {
       setUnitForm({ property_id: "", unit_number: "", rent_amount: 0, bedrooms: 1, description: "" });
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed");
+      toast.error(formatApiError(err, "Failed"));
     }
   };
 
@@ -69,7 +69,7 @@ export default function PropertiesPage() {
       toast.success("Unit deleted");
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed");
+      toast.error(formatApiError(err, "Failed"));
     }
   };
 
