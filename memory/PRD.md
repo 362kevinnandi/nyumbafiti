@@ -47,11 +47,20 @@ Build a rental management system for tenants in Nairobi where landlords are able
 - [x] Auto-update bill status: pending/partial/paid/overdue
 - [x] Issue create/assign/status update
 - [x] Issue threaded messages (tenant↔landlord↔caretaker)
-- [x] Dashboard stats per role (properties, units, arrears, collected, open issues)
-- [x] Login/register hero pages with Nairobi skyline imagery
+- [x] Dashboard stats per role
+- [x] Login/register hero pages
 - [x] Sidebar layout with role-aware nav
 - [x] Property cards with images + unit counts
 - [x] Responsive mobile nav
+- [x] **Public marketplace** at `/marketplace` (no auth required) showing all vacant units
+- [x] **Listing detail page** at `/marketplace/:unitId` with image, description, fee
+- [x] **Paid viewing booking** flow — KES 200 M-Pesa STK Push reveals caretaker/landlord contact after payment
+- [x] **Auto-prospect account creation** with one-time password returned in booking response
+- [x] **Landlord Viewings page** to see incoming requests with prospect contact info
+- [x] **Prospect dashboard + /viewings** to track their own bookings
+- [x] Occupied units **automatically disappear** from public listings
+- [x] Global ErrorBoundary + `formatApiError` helper for safe 422 handling
+- [x] Code-review fixes: useCallback wrapped data loaders, empty catch removed, resp defensive init
 
 ## Prioritized Backlog
 ### P0 / Now
