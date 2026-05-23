@@ -35,34 +35,30 @@ Build a rental management system for tenants in Nairobi where landlords are able
 - Role-scoped data access
 
 ## Implemented (2026-02 / 2026-05)
-- [x] JWT auth, register (landlord), login, /me, suspended-account lockout
-- [x] Property + Unit CRUD with image, address
+- [x] Multi-role auth (landlord/tenant/caretaker/prospect/admin) with JWT + bcrypt
+- [x] Suspended-account lockout (admin can suspend any user)
+- [x] Property + Unit CRUD with image uploads (URL-based)
 - [x] Tenant onboarding + automatic unit occupancy
 - [x] Caretaker creation
-- [x] Manual bill creation (rent, water, electricity, service, other)
-- [x] One-click monthly rent generation
-- [x] M-Pesa STK Push initiation (demo-mode fallback)
-- [x] M-Pesa callback handler with secret-path security
-- [x] Payment status polling
-- [x] Auto-update bill status: pending/partial/paid/overdue
-- [x] Issue create/assign/status update
-- [x] Issue threaded messages
-- [x] Dashboard stats per role
-- [x] Login/register hero pages
-- [x] Sidebar layout with role-aware nav
-- [x] Public marketplace at `/marketplace`
-- [x] Paid viewing booking (KES 200 M-Pesa STK Push)
-- [x] Auto-prospect account creation with one-time password
-- [x] Landlord viewings page + prospect /viewings tracker
+- [x] Manual & auto-generated monthly rent bills
+- [x] M-Pesa STK Push (demo + production paths) with callback handler
+- [x] Bill status auto-update (pending/partial/paid/overdue)
+- [x] Issue ticketing + threaded messages (tenant ↔ landlord ↔ caretaker ↔ admin)
+- [x] Public marketplace `/marketplace` + paid viewings (KES 200) + auto-prospect accounts
+- [x] **Super-admin role** pre-seeded from env vars
+- [x] **3.5% platform commission** auto-deducted, rate editable from Admin Settings
+- [x] **Admin platform overview** (commission, gross, owed-to-landlords, users, properties, pending approvals, arrears)
+- [x] **Admin User Management** with suspend/reactivate (blocks login + invalidates sessions)
+- [x] **Admin Refund** (rolls back linked bill / cancels viewing)
+- [x] **Admin Payouts** per-landlord balances + mark-as-paid history
+- [x] **Approval gating** — every new property, tenant, caretaker requires admin approval before they fully participate
+  - Pending properties hidden from public marketplace
+  - Pending tenants blocked from M-Pesa payments (clear banner + 403)
+  - Pending caretakers blocked from claiming/resolving tickets
+- [x] **Admin Oversight views** — read-only access to ALL bills + ALL issues platform-wide
+- [x] **Admin Mediation** — post messages into any issue thread as a "platform admin" voice
+- [x] Legacy data auto-migration on startup so demo flows keep working
 - [x] Global ErrorBoundary + formatApiError helper
-- [x] **Super-admin role** pre-seeded from `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars
-- [x] **3.5% platform commission** computed on every successful M-Pesa transaction, stored as `commission_amount` + `net_to_landlord` on the Payment record
-- [x] **Admin Platform Overview** showing total commission, gross volume, owed-to-landlords, users, properties, by-source revenue breakdown
-- [x] **Admin User management** with suspend/reactivate (blocks login + invalidates active sessions)
-- [x] **Admin All Payments** with refund flow (rolls back linked bill / cancels linked viewing)
-- [x] **Admin Payouts** per-landlord balance owed + mark-as-paid history
-- [x] **Admin Settings** to change commission rate (stored in `platform_settings` DB collection)
-- [x] **Landlord Payments page** now shows Gross / Fee / Net columns so each landlord sees what they actually receive
 
 ## Prioritized Backlog
 ### P0 / Now
