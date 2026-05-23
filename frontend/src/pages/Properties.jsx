@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, formatKES } from "@/lib/api";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -21,13 +21,13 @@ export default function PropertiesPage() {
   const [unitForm, setUnitForm] = useState({ property_id: "", unit_number: "", rent_amount: 0, bedrooms: 1, description: "" });
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [p, u] = await Promise.all([api.get("/properties"), api.get("/units")]);
     setProperties(p.data);
     setUnits(u.data);
     setLoading(false);
-  };
-  useEffect(() => { load(); }, []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
 
   const createProperty = async (e) => {
     e.preventDefault();

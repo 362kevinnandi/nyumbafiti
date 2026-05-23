@@ -113,6 +113,7 @@ async def initiate_payment(
     callback_secret = os.environ.get("MPESA_CALLBACK_SECRET", "secret")
     callback_url = f"{callback_base}/api/payments/mpesa/callback/{callback_secret}"
 
+    resp: dict = {}
     try:
         resp = await stk_push(
             phone=phone,

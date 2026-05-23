@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/AppShell";
@@ -32,15 +32,15 @@ export default function IssuesPage() {
   const [form, setForm] = useState({ title: "", description: "", priority: "medium" });
   const [selectedIssue, setSelectedIssue] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const calls = [api.get("/issues")];
     if (user.role === "landlord") calls.push(api.get("/caretakers"));
     const results = await Promise.all(calls);
     setIssues(results[0].data);
     if (user.role === "landlord") setCaretakers(results[1].data);
     setLoading(false);
-  };
-  useEffect(() => { load(); }, []);
+  }, [user.role]);
+  useEffect(() => { load(); }, [load]);
 
   const create = async (e) => {
     e.preventDefault();
@@ -184,12 +184,12 @@ function IssueThreadDialog({ issue, onClose }) {
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const r = await api.get(`/issues/${issue.id}/messages`);
     setMessages(r.data);
     setLoading(false);
-  };
-  useEffect(() => { load(); }, []);
+  }, [issue.id]);
+  useEffect(() => { load(); }, [load]);
 
   const send = async (e) => {
     e.preventDefault();

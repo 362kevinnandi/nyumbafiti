@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, formatKES } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/AppShell";
@@ -30,7 +30,7 @@ export default function BillsPage() {
     due_date: "", description: "",
   });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const calls = [api.get("/bills")];
     if (isLandlord) {
       calls.push(api.get("/tenants"));
@@ -43,8 +43,8 @@ export default function BillsPage() {
       setUnits(results[2].data);
     }
     setLoading(false);
-  };
-  useEffect(() => { load(); }, []);
+  }, [isLandlord]);
+  useEffect(() => { load(); }, [load]);
 
   const create = async (e) => {
     e.preventDefault();
@@ -230,7 +230,9 @@ function PayDialog({ bill, onPaid }) {
             setStatus("Payment failed: " + (pr.data.result_desc || "unknown error"));
             toast.error("Payment failed");
           }
-        } catch {}
+        } catch (pollErr) {
+          console.error("Payment status poll error:", pollErr);
+        }
       }, 2000);
       setTimeout(() => clearInterval(interval), 90000);
     } catch (err) {
