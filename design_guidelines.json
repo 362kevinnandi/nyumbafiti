@@ -1,0 +1,112 @@
+{
+  "project_name": "Nairobi Rental Management System",
+  "theme": "light",
+  "archetype": "Archetype 4 (Swiss & High-Contrast)",
+  "rationale": "For a data-heavy property management dashboard, clarity and authority are paramount. We use a monochrome baseline with functional color pops (Green for M-Pesa, Red for Arrears) to guide attention immediately.",
+  "typography": {
+    "headings": {
+      "family": "Cabinet Grotesk, sans-serif",
+      "weights": ["500", "700", "900"],
+      "usage": "Use tight letter spacing (tracking-tight). Max size text-5xl for major page titles. Avoid default bold, lean into Black for emphasis."
+    },
+    "body": {
+      "family": "IBM Plex Sans, sans-serif",
+      "weights": ["400", "500", "600"],
+      "usage": "Clean, highly readable technical sans for data tables, lists, and forms."
+    },
+    "rules": [
+      "No Inter for headings.",
+      "Overlines must be uppercase, tiny, wide spacing (tracking-[0.2em]).",
+      "Line height: leading-none for headers, leading-relaxed for body."
+    ]
+  },
+  "colors": {
+    "background": {
+      "main": "#FAFAFA",
+      "secondary": "#FFFFFF",
+      "tertiary": "#F4F4F5"
+    },
+    "text": {
+      "primary": "#0A0A0A",
+      "secondary": "#52525B",
+      "muted": "#A1A1AA"
+    },
+    "brand": {
+      "primary": "#0A0A0A",
+      "secondary": "#27272A"
+    },
+    "functional": {
+      "mpesa_green": "#00A651",
+      "arrears_red": "#EF4444",
+      "warning": "#F59E0B",
+      "info": "#3B82F6"
+    },
+    "borders": "#E4E4E7",
+    "rules": [
+      "Color is function only. 95% of UI is monochrome.",
+      "M-Pesa payment buttons must be M-Pesa Green (#00A651) with white text.",
+      "Arrears and overdue bills must be highlighted in Red.",
+      "Hover states must be explicitly styled (e.g., hover:bg-zinc-100)."
+    ]
+  },
+  "spacing_and_layout": {
+    "grid_system": "The Control Room Grid",
+    "rules": [
+      "Base grid for dashboards: grid-cols-1 md:grid-cols-3 lg:grid-cols-4 with gap-4 or gap-6.",
+      "Use dense, compact spacing for data visibility.",
+      "Grid borders: visible skeletons for tables and data lists.",
+      "Containers must have internal padding (p-6) to prevent collision with borders."
+    ],
+    "surface_styles": {
+      "dashboard_cards": "Flat solid background, 1px subtle border (border-zinc-200), max 8px border-radius (rounded-md). No soft shadows.",
+      "headers": "Solid background with a hard bottom border. No glassmorphism here, keep it crisp."
+    }
+  },
+  "components": {
+    "sidebar": "Fixed left, solid background (bg-zinc-50), right border (border-zinc-200).",
+    "cards": "Use raw div structure over rigid Card components for custom dashboard widgets. Max border radius 8px.",
+    "tables": "Shadcn Table component. Dense padding, hover states on rows. Left align data, right align currency.",
+    "buttons": "Sharp corners or max rounded-md. Primary CTA is solid black, M-Pesa CTA is solid green.",
+    "forms": "Shadcn Form, Input, Select. Use IBM Plex Sans for input values.",
+    "badges": "Square or slightly rounded (rounded-sm). High contrast text."
+  },
+  "motion_and_interactions": {
+    "rules": [
+      "Minimalist animations.",
+      "Hover on cards: slight lift (-translate-y-0.5) and border color darken (border-zinc-300).",
+      "Hover on rows: bg-zinc-50.",
+      "Required: data-testid on all interactive elements (e.g., mpesa-pay-button, tenant-issue-submit)."
+    ]
+  },
+  "media": {
+    "icons": {
+      "library": "lucide-react",
+      "usage": "Use functional icons with clear contrast. Stroke width 1.5 or 2."
+    },
+    "image_urls": [
+      {
+        "category": "hero_login_background",
+        "url": "https://images.unsplash.com/photo-1596005554384-d293674c91d7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzl8MHwxfHNlYXJjaHwxfHxuYWlyb2JpJTIwc2t5bGluZSUyMHN1bnNldHxlbnwwfHx8fDE3Nzk1MDY5NDZ8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Nairobi skyline sunset for authentication page background or marketing hero."
+      },
+      {
+        "category": "property_placeholder",
+        "url": "https://images.unsplash.com/photo-1630241466166-22e43156d8c0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODR8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBhcGFydG1lbnQlMjBidWlsZGluZyUyMG5haXJvYml8ZW58MHx8fHwxNzc5NTA2OTQ2fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Modern apartment building in Nairobi for property cards."
+      },
+      {
+        "category": "user_avatar_placeholder",
+        "url": "https://images.unsplash.com/photo-1642257859842-c95f9fa8121d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHw0fHxwcm9mZXNzaW9uYWwlMjBhZnJpY2FuJTIwbWFuJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzc5NTA2OTQ2fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Professional African man portrait for landlord/caretaker profile avatar."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Install fonts: Cabinet Grotesk (headings) and IBM Plex Sans (body).",
+    "Use Shadcn UI extensively for Data Tables, Tabs (for role switching or sections), Dialogs (for issue reporting/payment).",
+    "Structure the dashboard using the 'Control Room Grid' layout (grid-cols-4).",
+    "Ensure the M-Pesa CTA stands out using the functional mpesa_green color.",
+    "Add 'data-testid' to all key elements for testing.",
+    "Avoid soft, muddy shadows. Use 1px borders to separate elements."
+  ]
+}
