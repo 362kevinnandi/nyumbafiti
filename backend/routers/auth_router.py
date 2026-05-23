@@ -26,6 +26,11 @@ async def register(payload: UserRegister):
             status_code=400,
             detail="Prospect accounts are created automatically when you book a viewing on the marketplace.",
         )
+    if payload.role == "admin":
+        raise HTTPException(
+            status_code=400,
+            detail="Admin accounts cannot be self-registered.",
+        )
 
     db = get_db()
     user_doc = {
@@ -56,6 +61,11 @@ async def login(payload: LoginRequest):
     user = await db["users"].find_one({"email": payload.email.lower()})
     if not user or not verify_password(payload.password, user.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if user.get("suspended"):
+        raise HTTPException(
+            status_code=403,
+            detail="Account suspended. Contact platform administrator.",
+        )
     token = create_token(user["id"], user["role"])
     user.pop("password_hash", None)
     user.pop("_id", None)

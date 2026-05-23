@@ -1,0 +1,34 @@
+{
+  "summary": "Full e2e validation of new super-admin feature set: admin seeding, role-based access, commission tracking, suspend/reactivate, refund, payouts, settings. 18 new admin pytest tests added + all 54 pre-existing tests still pass (72/72 total). Frontend admin dashboard, settings, users, payments, payouts, and landlord Gross/Fee/Net columns all render correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin.py",
+    "/app/test_reports/pytest/admin_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "admin_router.update_settings response calls get_settings(_) passing the admin dict where the dependency expects to inject; works because FastAPI dependency is bypassed when called directly, but it's a fragile pattern. Consider refactoring to a private helper returning the settings dict.",
+    "models.Payment Pydantic model does not declare commission_amount / net_to_landlord / commission_rate fields. Mongo stores them and admin endpoints return them, but the typed Payment model is out-of-sync with reality. Same for PaymentStatus 'refunded' is in Literal but Payment model used for response_model in other endpoints would now strip the new fields if you ever switched to response_model=Payment.",
+    "payments_router._process_callback_payload uses local var name 'status' which shadows the FastAPI status module (no actual bug because that module isn't imported here, but the variable name is confusing).",
+    "compute_commission is imported lazily inside _process_callback_payload to avoid circular import - acceptable, but a small note for future maintainers.",
+    "Refunds do not credit a tenant or attempt actual M-Pesa reversal - it's purely a bookkeeping refund (status flipped + bill rolled back / viewing cancelled). This matches the stated design but should be documented clearly in admin UI."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin.py (new file, 18 tests)"
+  ],
+  "success_rate": {"backend": "100% (72/72)", "frontend": "100% (admin nav + dashboard + settings persistence + landlord Gross/Fee/Net + admin redirect)"},
+  "test_credentials": "admin@nyumbaos.co.ke / admin123 (admin), land@demo.com / demo123 (landlord). Confirmed working.",
+  "seed_data_creation": "Test creates a temporary landlord account per run (test_suspend_<random>@x.com) to verify suspend->login-block->reactivate->login-success flow. Also books one viewing per run (KES 200) which becomes a succeeded payment with commission_amount=7.00, then refunds it. No persistent pollution since the refund cancels the viewing.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All admin endpoints under /api/admin/* require role=admin (require_role('admin'))). Suspend uses /api/admin/users/{id}/suspend with body {suspended: true|false}. Commission only applied to payments succeeding AFTER feature deploy - legacy payments correctly show commission=0 (visible in landlord Payments UI as -KES 0 fee, KES 200 net). Tests confirmed: admin login -> /admin (not /dashboard), sidebar has Platform Overview/Users/All Payments/Payouts/Settings, dashboard tiles render COMMISSION EARNED/GROSS PROCESSED/OWED TO LANDLORDS/TOTAL USERS plus Revenue by Source breakdown. Settings persist after reload. Landlord Payments page now has GROSS/FEE/NET TO YOU columns.",
+  "rca of the issue": "N/A - no issues found. Feature works end-to-end."
+}

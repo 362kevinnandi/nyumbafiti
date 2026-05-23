@@ -21,6 +21,7 @@ from routers.payments_router import router as payments_router  # noqa: E402
 from routers.properties_router import router as properties_router  # noqa: E402
 from routers.users_router import router as users_router  # noqa: E402
 from routers.viewings_router import router as viewings_router  # noqa: E402
+from routers.admin_router import router as admin_router  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,9 +33,44 @@ logger = logging.getLogger("rental-mgmt")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await ensure_indexes()
+    await _seed_admin()
     logger.info("Indexes ensured. App ready.")
     yield
     get_client().close()
+
+
+async def _seed_admin():
+    """Idempotently ensure a super-admin user exists from env vars."""
+    from auth import hash_password
+    from models import new_id, now_iso
+
+    admin_email = os.environ.get("ADMIN_EMAIL", "").lower().strip()
+    admin_password = os.environ.get("ADMIN_PASSWORD", "")
+    if not admin_email or not admin_password:
+        logger.info("ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping admin seed.")
+        return
+    db = get_db()
+    existing = await db["users"].find_one({"email": admin_email})
+    if existing:
+        if existing.get("role") != "admin":
+            logger.warning(
+                "User %s exists with role=%s, not promoting automatically.",
+                admin_email,
+                existing.get("role"),
+            )
+        return
+    await db["users"].insert_one({
+        "id": new_id(),
+        "email": admin_email,
+        "full_name": os.environ.get("ADMIN_FULL_NAME", "Platform Admin"),
+        "phone": os.environ.get("ADMIN_PHONE", "254700000000"),
+        "role": "admin",
+        "password_hash": hash_password(admin_password),
+        "landlord_id": None,
+        "unit_id": None,
+        "created_at": now_iso(),
+    })
+    logger.info("Seeded admin user: %s", admin_email)
 
 
 app = FastAPI(title="Nairobi Rental Management", lifespan=lifespan)
@@ -50,6 +86,9 @@ async def root():
 @api_router.get("/dashboard/stats")
 async def dashboard_stats(user: dict = Depends(get_current_user)):
     db = get_db()
+    if user["role"] == "admin":
+        from routers.admin_router import platform_stats
+        return await platform_stats(user)
     if user["role"] == "landlord":
         properties = await db["properties"].count_documents({"landlord_id": user["id"]})
         units = await db["units"].count_documents({"landlord_id": user["id"]})
@@ -152,6 +191,7 @@ api_router.include_router(bills_router)
 api_router.include_router(payments_router)
 api_router.include_router(issues_router)
 api_router.include_router(viewings_router)
+api_router.include_router(admin_router)
 
 app.include_router(api_router)
 

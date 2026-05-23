@@ -17,6 +17,11 @@ import BillsPage from "@/pages/Bills";
 import PaymentsPage from "@/pages/Payments";
 import IssuesPage from "@/pages/Issues";
 import ViewingsPage from "@/pages/Viewings";
+import AdminDashboardPage from "@/pages/admin/AdminDashboard";
+import AdminUsersPage from "@/pages/admin/AdminUsers";
+import AdminPaymentsPage from "@/pages/admin/AdminPayments";
+import AdminPayoutsPage from "@/pages/admin/AdminPayouts";
+import AdminSettingsPage from "@/pages/admin/AdminSettings";
 
 function RequireAuth({ children, roles }) {
   const { user, loading } = useAuth();
@@ -30,7 +35,8 @@ function RequireAuth({ children, roles }) {
 function RootRedirect() {
   const { user, loading } = useAuth();
   if (loading) return <div className="p-8 text-zinc-500">Loading...</div>;
-  return user ? <Navigate to="/dashboard" replace /> : <Navigate to="/marketplace" replace />;
+  if (!user) return <Navigate to="/marketplace" replace />;
+  return <Navigate to={user.role === "admin" ? "/admin" : "/dashboard"} replace />;
 }
 
 export default function App() {
@@ -55,6 +61,11 @@ export default function App() {
             <Route path="/payments" element={<RequireAuth roles={["landlord", "tenant"]}><PaymentsPage /></RequireAuth>} />
             <Route path="/issues" element={<RequireAuth roles={["landlord", "tenant", "caretaker"]}><IssuesPage /></RequireAuth>} />
             <Route path="/viewings" element={<RequireAuth roles={["landlord", "prospect"]}><ViewingsPage /></RequireAuth>} />
+            <Route path="/admin" element={<RequireAuth roles={["admin"]}><AdminDashboardPage /></RequireAuth>} />
+            <Route path="/admin/users" element={<RequireAuth roles={["admin"]}><AdminUsersPage /></RequireAuth>} />
+            <Route path="/admin/payments" element={<RequireAuth roles={["admin"]}><AdminPaymentsPage /></RequireAuth>} />
+            <Route path="/admin/payouts" element={<RequireAuth roles={["admin"]}><AdminPayoutsPage /></RequireAuth>} />
+            <Route path="/admin/settings" element={<RequireAuth roles={["admin"]}><AdminSettingsPage /></RequireAuth>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

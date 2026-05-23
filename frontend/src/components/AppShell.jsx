@@ -3,6 +3,7 @@ import { useAuth } from "@/lib/auth";
 import {
   Building2, LayoutDashboard, Home, Users, FileText,
   CreditCard, Wrench, HardHat, LogOut, ChevronRight, Calendar,
+  ShieldCheck, Wallet, Settings,
 } from "lucide-react";
 
 const NAV_BY_ROLE = {
@@ -29,6 +30,13 @@ const NAV_BY_ROLE = {
   prospect: [
     { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
     { to: "/viewings", label: "My Viewings", icon: Calendar },
+  ],
+  admin: [
+    { to: "/admin", label: "Platform Overview", icon: ShieldCheck },
+    { to: "/admin/users", label: "Users", icon: Users },
+    { to: "/admin/payments", label: "All Payments", icon: CreditCard },
+    { to: "/admin/payouts", label: "Payouts", icon: Wallet },
+    { to: "/admin/settings", label: "Settings", icon: Settings },
   ],
 };
 

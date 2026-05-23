@@ -43,6 +43,11 @@ async def _process_callback_payload(payload: dict):
     if confirmed_amount is None or confirmed_amount == 0:
         confirmed_amount = payment["amount"]
 
+    # ---- Commission calc -----
+    from routers.admin_router import compute_commission, get_commission_rate
+    rate = await get_commission_rate()
+    split = compute_commission(confirmed_amount, rate)
+
     update = {
         "result_desc": result_desc,
         "updated_at": now_iso(),
@@ -51,6 +56,9 @@ async def _process_callback_payload(payload: dict):
         update["status"] = "succeeded"
         update["mpesa_receipt"] = mpesa_receipt or f"DEMO{uuid.uuid4().hex[:8].upper()}"
         update["amount"] = confirmed_amount
+        update["commission_rate"] = rate
+        update["commission_amount"] = split["commission"]
+        update["net_to_landlord"] = split["net"]
     else:
         update["status"] = "failed"
 

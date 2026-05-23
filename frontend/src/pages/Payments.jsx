@@ -44,12 +44,14 @@ export default function PaymentsPage() {
       ) : (
         <div className="bg-white border border-zinc-200 rounded-md overflow-x-auto" data-testid="payments-table">
           <table className="w-full text-sm min-w-[600px]">
-            <thead className="bg-zinc-50 border-b border-zinc-200">
-              <tr>
+            <thead className="bg-zinc-50 border-b border-zinc-200">              <tr>
                 <th className="text-left px-4 py-3 overline text-zinc-500">Date</th>
                 <th className="text-left px-4 py-3 overline text-zinc-500">Phone</th>
                 <th className="text-left px-4 py-3 overline text-zinc-500">Receipt</th>
-                <th className="text-right px-4 py-3 overline text-zinc-500">Amount</th>
+                <th className="text-right px-4 py-3 overline text-zinc-500">Gross</th>
+                {isLandlord && <th className="text-right px-4 py-3 overline text-zinc-500">Fee</th>}
+                {isLandlord && <th className="text-right px-4 py-3 overline text-zinc-500">Net to You</th>}
+                {!isLandlord && <th className="text-right px-4 py-3 overline text-zinc-500">Amount</th>}
                 <th className="text-left px-4 py-3 overline text-zinc-500">Status</th>
               </tr>
             </thead>
@@ -62,6 +64,9 @@ export default function PaymentsPage() {
                     <td className="px-4 py-3 font-mono-num">{p.phone_number}</td>
                     <td className="px-4 py-3 font-mono-num text-xs text-zinc-600">{p.mpesa_receipt || "—"}</td>
                     <td className="px-4 py-3 text-right font-mono-num font-semibold">{formatKES(p.amount)}</td>
+                    {isLandlord && <td className="px-4 py-3 text-right font-mono-num text-zinc-500 text-xs">−{formatKES(p.commission_amount || 0)}</td>}
+                    {isLandlord && <td className="px-4 py-3 text-right font-mono-num text-emerald-600 font-bold">{formatKES(p.net_to_landlord || p.amount)}</td>}
+                    {!isLandlord && <td className="px-4 py-3 text-right font-mono-num font-semibold">{formatKES(p.amount)}</td>}
                     <td className="px-4 py-3">
                       <span className={`badge-status border ${STATUS_STYLES[p.status]}`}>
                         <Icon className="w-3 h-3" /> {p.status}

@@ -13,14 +13,16 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 
-Role = Literal["landlord", "tenant", "caretaker", "prospect"]
+Role = Literal["landlord", "tenant", "caretaker", "prospect", "admin"]
 BillType = Literal["rent", "water", "electricity", "service", "other"]
 BillStatus = Literal["pending", "partial", "paid", "overdue"]
-PaymentStatus = Literal["pending", "succeeded", "failed", "cancelled"]
+PaymentStatus = Literal["pending", "succeeded", "failed", "cancelled", "refunded"]
 IssueStatus = Literal["open", "in_progress", "resolved", "closed"]
 IssuePriority = Literal["low", "medium", "high", "urgent"]
 ViewingStatus = Literal["pending_payment", "scheduled", "completed", "cancelled"]
+PayoutStatus = Literal["pending", "paid"]
 VIEWING_FEE_KES = 200
+DEFAULT_COMMISSION_RATE = 0.035  # 3.5%
 
 
 # ============ USER ============

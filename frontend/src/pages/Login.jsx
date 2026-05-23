@@ -21,7 +21,7 @@ export default function LoginPage() {
     try {
       const u = await login(email, password);
       toast.success(`Welcome back, ${u.full_name}`);
-      navigate("/dashboard");
+      navigate(u.role === "admin" ? "/admin" : "/dashboard");
     } catch (err) {
       toast.error(formatApiError(err, "Login failed"));
     } finally {
