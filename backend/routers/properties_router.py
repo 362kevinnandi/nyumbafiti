@@ -1,11 +1,24 @@
 """Property and Unit management."""
-from fastapi import APIRouter, Depends, HTTPException
-
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    UploadFile,
+    File,
+    Form,
+)
 from auth import get_current_user, require_role
 from db import get_db
 from models import Property, PropertyCreate, Unit, UnitCreate, new_id, now_iso
+from typing import List
+import os
+import shutil
 
 router = APIRouter(tags=["properties"])
+
+UPLOAD_DIR = "uploads/properties"
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @router.get("/properties")
@@ -31,24 +44,44 @@ async def list_properties(user: dict = Depends(get_current_user)):
 
 @router.post("/properties", response_model=Property)
 async def create_property(
-    payload: PropertyCreate, user: dict = Depends(require_role("landlord"))
+    name: str = Form(...),
+    address: str = Form(...),
+    description: str = Form(""),
+    images: List[UploadFile] = File([]),
+    user: dict = Depends(require_role("landlord")),
 ):
     db = get_db()
+
+    image_paths = []
+
+    # limit to 5 images
+    for image in images[:5]:
+
+        filename = f"{new_id()}_{image.filename}"
+        file_path = f"{UPLOAD_DIR}/{filename}"
+
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(image.file, buffer)
+
+        image_paths.append(file_path)
+
     doc = {
         "id": new_id(),
         "landlord_id": user["id"],
-        "name": payload.name,
-        "address": payload.address,
-        "description": payload.description or "",
-        "image_url": payload.image_url or "",
+        "name": name,
+        "address": address,
+        "description": description,
+        "images": image_paths,
         "units_count": 0,
         "approval_status": "pending",
         "created_at": now_iso(),
     }
-    await db["properties"].insert_one(doc)
-    doc.pop("_id", None)
-    return Property(**doc)
 
+    await db["properties"].insert_one(doc)
+
+    doc.pop("_id", None)
+
+    return Property(**doc)
 
 @router.delete("/properties/{prop_id}")
 async def delete_property(prop_id: str, user: dict = Depends(require_role("landlord"))):

@@ -1,0 +1,34 @@
+.swiper-button-next,
+.swiper-button-prev {
+  color: white !important;
+  background: rgba(0, 0, 0, 0.45);
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 9999px;
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
+}
+
+.swiper-button-next:after,
+.swiper-button-prev:after {
+  font-size: 18px !important;
+  font-weight: 700;
+}
+
+.swiper-button-next:hover,
+.swiper-button-prev:hover {
+  background: rgba(0, 0, 0, 0.7);
+  transform: scale(1.05);
+}
+
+.swiper-button-disabled {
+  opacity: 0.35 !important;
+}
+
+.swiper {
+  border-radius: 10px;
+}
+
+.swiper-slide img {
+  user-select: none;
+}

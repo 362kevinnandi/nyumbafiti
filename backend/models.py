@@ -63,18 +63,19 @@ class PropertyCreate(BaseModel):
     name: str
     address: str
     description: Optional[str] = ""
-    image_url: Optional[str] = ""
 
 
-class Property(PropertyCreate):
+class Property(BaseModel):
     id: str
     landlord_id: str
+    name: str
+    address: str
+    description: Optional[str] = ""
+    images: List[str] = []
     units_count: int = 0
     approval_status: ApprovalStatus = "pending"
     rejection_reason: Optional[str] = ""
     created_at: str
-
-
 # ============ UNIT ============
 class UnitCreate(BaseModel):
     property_id: str

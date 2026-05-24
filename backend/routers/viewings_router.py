@@ -62,13 +62,13 @@ async def public_listings(city: Optional[str] = None, max_rent: Optional[float] 
             "rent_amount": u["rent_amount"],
             "bedrooms": u["bedrooms"],
             "description": u.get("description", ""),
-            "property": {
-                "id": prop["id"],
-                "name": prop["name"],
-                "address": prop["address"],
-                "description": prop.get("description", ""),
-                "image_url": prop.get("image_url", ""),
-            },
+ "property": {
+    "id": prop["id"],
+    "name": prop["name"],
+    "address": prop["address"],
+    "description": prop.get("description", ""),
+    "images": prop.get("images", []),
+},
             "landlord_name": l_map.get(u["landlord_id"], {}).get("full_name", "Verified Landlord"),
         })
     return listings
@@ -93,13 +93,13 @@ async def public_listing_detail(unit_id: str):
         "bedrooms": unit["bedrooms"],
         "description": unit.get("description", ""),
         "viewing_fee": VIEWING_FEE_KES,
-        "property": {
-            "id": prop["id"],
-            "name": prop["name"],
-            "address": prop["address"],
-            "description": prop.get("description", ""),
-            "image_url": prop.get("image_url", ""),
-        },
+       "property": {
+    "id": prop["id"],
+    "name": prop["name"],
+    "address": prop["address"],
+    "description": prop.get("description", ""),
+    "images": prop.get("images", []),
+},
         "landlord_name": (landlord or {}).get("full_name", "Verified Landlord"),
     }
 

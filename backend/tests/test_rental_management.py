@@ -97,10 +97,19 @@ def test_me():
 
 # ============ PROPERTIES / UNITS ============
 def test_create_property():
-    r = requests.post(f"{API}/properties", headers=h(state["landlord_token"]), json={
-        "name": "TEST Sunrise Apts", "address": "Westlands, Nairobi",
-        "description": "Test property", "image_url": "",
-    })
+    r = requests.post(
+    f"{API}/properties",
+    headers={
+        "Authorization": f"Bearer {state['landlord_token']}"
+    },
+    data={
+        "name": "TEST Sunrise Apts",
+        "address": "Westlands, Nairobi",
+        "description": "Test property",
+    },
+    files=[])
+
+    
     assert r.status_code == 200, r.text
     state["property_id"] = r.json()["id"]
     assert r.json()["landlord_id"] == state["landlord_id"]
@@ -361,8 +370,18 @@ def test_another_tenant_cannot_see_bills():
     assert r.status_code == 200
     l2_tok = r.json()["access_token"]
     # property + unit
-    p = requests.post(f"{API}/properties", headers=h(l2_tok),
-                      json={"name": "P2", "address": "X"}).json()
+    p = requests.post(
+    f"{API}/properties",
+    headers={
+        "Authorization": f"Bearer {l2_tok}"
+    },
+    data={
+        "name": "P2",
+        "address": "X",
+        "description": "",
+    },
+    files=[]
+).json()
     u = requests.post(f"{API}/units", headers=h(l2_tok), json={
         "property_id": p["id"], "unit_number": "B1", "rent_amount": 10000,
     }).json()

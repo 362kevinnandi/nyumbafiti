@@ -12,6 +12,15 @@ import {
   ArrowLeft, ShieldCheck, Calendar as CalendarIcon, Phone, User,
   Copy, Mail
 } from "lucide-react";
+import { Swiper, SwiperSlide } from "swiper/react";
+
+import "swiper/css";
+import "./swiper-overrides.css";
+import "swiper/css/navigation";
+
+import { Navigation } from "swiper/modules";
+import { useRef } from "react";
+import "swiper/css/pagination";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1630241466166-22e43156d8c0?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200";
 
@@ -21,7 +30,8 @@ export default function MarketplaceDetailPage() {
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [bookOpen, setBookOpen] = useState(false);
-
+  const [activeImage, setActiveImage] = useState(0);
+  const swiperRef = useRef(null);
   const load = useCallback(async () => {
     try {
       const r = await api.get(`/public/listings/${unitId}`);
@@ -52,14 +62,74 @@ export default function MarketplaceDetailPage() {
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        <div className="grid lg:grid-cols-[1fr_360px] gap-8">
-          {/* Main content */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+<div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-8 items-start">        
+    {/* Main content */}
           <div>
-            <div
-              className="aspect-[16/10] bg-zinc-100 rounded-md mb-6 border border-zinc-200"
-              style={{ backgroundImage: `url(${listing.property.image_url || FALLBACK_IMG})`, backgroundSize: "cover", backgroundPosition: "center" }}
-            />
+  <div className="relative rounded-md overflow-hidden border border-zinc-200 bg-white w-full">
+
+<Swiper
+  modules={[Navigation]}
+  navigation
+  spaceBetween={0}
+  slidesPerView={1}
+  className="w-full h-[400px] rounded-md"
+  onSwiper={(swiper) => {
+    swiperRef.current = swiper;
+  }}
+  onSlideChange={(swiper) => {
+    setActiveImage(swiper.activeIndex);
+  }}
+>
+
+    {(listing.property.images?.length
+      ? listing.property.images
+      : [FALLBACK_IMG]
+    ).map((img, index) => (
+
+      <SwiperSlide key={index}>
+
+        <img
+          src={
+            img.startsWith("http")
+              ? img
+              : `http://localhost:8001/${img.replace(/^\/+/, "")}`
+          }
+          alt={`Property ${index + 1}`}
+         className="block w-full h-[400px] object-cover bg-zinc-100 transition-all duration-300"        />
+
+      </SwiperSlide>
+
+    ))}
+
+  </Swiper>
+  <div className="absolute bottom-3 right-3 z-20 bg-zinc-950/80 text-white text-xs px-2 py-1 rounded-md font-medium backdrop-blur-sm">
+  {activeImage + 1} / {(listing.property.images?.length || 1)}
+</div>
+
+</div>
+<div className="flex gap-3 mt-4 mb-6 overflow-x-auto pb-1">
+
+  {listing.property.images?.map((img, index) => (
+
+    <img
+      key={index}
+      src={`http://localhost:8001/${img.replace(/^\/+/, "")}`}
+      alt=""
+      onClick={() => {
+  setActiveImage(index);
+  swiperRef.current?.slideTo(index);
+}}
+      className={`w-28 h-20 shrink-0 object-cover rounded-md border cursor-pointer transition-all duration-200 ${
+        activeImage === index
+          ? "border-black ring-2 ring-black shadow-xl brightness-[1.02]"
+          : "border-zinc-200 opacity-80 hover:opacity-100 hover:border-zinc-400"
+      }`}
+    />
+
+  ))}
+
+</div>
             <div className="overline text-zinc-500 mb-2">Verified Listing · Vacant</div>
             <h1 className="font-display font-black text-4xl sm:text-5xl tracking-tight leading-none mb-3">
               {listing.property.name}
@@ -102,8 +172,8 @@ export default function MarketplaceDetailPage() {
           </div>
 
           {/* Booking sidebar */}
-          <aside className="lg:sticky lg:top-24 self-start">
-            <div className="bg-white border border-zinc-200 rounded-md p-6">
+<aside className="hidden lg:block lg:sticky lg:top-24 self-start">
+              <div className="bg-white border border-zinc-200 rounded-md p-6">
               <div className="overline text-zinc-500 mb-2">Listed by</div>
               <div className="font-display font-bold text-lg mb-1">{listing.landlord_name}</div>
               <div className="text-xs text-zinc-500 mb-6">Verified landlord on Nyumba OS</div>

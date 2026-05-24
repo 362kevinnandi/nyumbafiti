@@ -14,6 +14,8 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [maxRent, setMaxRent] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const listingsPerPage = 9;
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -31,6 +33,7 @@ export default function MarketplacePage() {
   useEffect(() => {
     const q = search.toLowerCase().trim();
     if (!q) { setFiltered(listings); return; }
+    setCurrentPage(1);
     setFiltered(
       listings.filter(
         (l) =>
@@ -40,12 +43,20 @@ export default function MarketplacePage() {
       )
     );
   }, [search, listings]);
+  const totalPages = Math.ceil(filtered.length / listingsPerPage);
+
+const startIndex = (currentPage - 1) * listingsPerPage;
+
+const paginatedListings = filtered.slice(
+  startIndex,
+  startIndex + listingsPerPage
+);
 
   return (
     <div className="min-h-screen bg-[#FAFAFA]" data-testid="marketplace-page">
       {/* Public top nav */}
       <header className="bg-white border-b border-zinc-200 sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <Link to="/marketplace" className="flex items-center gap-2" data-testid="marketplace-logo">
             <div className="w-8 h-8 bg-zinc-950 rounded-md flex items-center justify-center">
               <Building2 className="w-4 h-4 text-white" />
@@ -117,30 +128,54 @@ export default function MarketplacePage() {
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
         <div className="flex items-end justify-between mb-6 flex-wrap gap-2">
           <div>
-            <div className="overline text-zinc-500 mb-1">Available now</div>
-            <h2 className="font-display font-black text-2xl tracking-tight">
-              {loading ? "Loading listings..." : `${filtered.length} vacant ${filtered.length === 1 ? "unit" : "units"}`}
-            </h2>
-          </div>
+
+  <div className="uppercase tracking-[0.22em] text-[11px] text-zinc-500 border-t border-zinc-300 pt-2 w-fit">
+    Available Now
+  </div>
+
+  <h2 className="font-display font-black text-4xl tracking-tight mt-3">
+    {loading
+      ? "Loading listings..."
+      : `${filtered.length} Verified Vacant ${
+          filtered.length === 1 ? "Unit" : "Units"
+        }`}
+  </h2>
+
+  <div className="text-sm text-zinc-500 mt-2">
+    Showing {startIndex + 1}–
+    {Math.min(startIndex + listingsPerPage, filtered.length)} of{" "}
+    {filtered.length} listings
+  </div>
+
+</div>
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-7">
             {[1,2,3].map(i => <div key={i} className="bg-white border border-zinc-200 rounded-md h-72 animate-pulse" />)}
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 border border-dashed border-zinc-200 rounded-md bg-white">
-            <Building2 className="w-10 h-10 mx-auto text-zinc-300 mb-3" />
+            <Building2 className="w-11 h-11 shadow-sm mx-auto text-zinc-300 mb-3" />
             <div className="font-display font-bold text-lg mb-1">No listings match</div>
             <div className="text-sm text-zinc-500">Try adjusting your search or check back soon.</div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" data-testid="listings-grid">
-            {filtered.map((l) => (
-              <Link key={l.id} to={`/marketplace/${l.id}`} className="bg-white border border-zinc-200 rounded-md overflow-hidden card-hover block group" data-testid={`listing-card-${l.id}`}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7" data-testid="listings-grid">
+            {paginatedListings.map((l) => (
+              <Link key={l.id} to={`/marketplace/${l.id}`} className="bg-white border border-zinc-200 rounded-2xl overflow-hidden block group transition-all duration-300 shadow-sm hover:-translate-y-1 hover:shadow-2xl hover:border-zinc-300" data-testid={`listing-card-${l.id}`}>
                 <div
-                  className="relative h-48 bg-zinc-100"
-                  style={{ backgroundImage: `url(${l.property.image_url || FALLBACK_IMG})`, backgroundSize: "cover", backgroundPosition: "center" }}
+                  className="relative h-56 bg-zinc-100 overflow-hidden group-hover:scale-[1.02] transition-transform duration-500"
+                  style={{ 
+  backgroundImage: `url(${
+    l.property.images?.[0]
+      ? `http://localhost:8001/${l.property.images[0].replace(/^\/+/, "")}`
+      : FALLBACK_IMG
+  })`,
+  backgroundSize: "cover",
+  transition: "transform 0.5s ease",
+  backgroundPosition: "center"
+}}
                 >
                   <div className="absolute top-3 left-3 bg-white/95 backdrop-blur px-2 py-0.5 rounded-sm text-xs font-mono-num font-semibold">
                     {formatKES(l.rent_amount)}/mo
@@ -161,7 +196,7 @@ export default function MarketplacePage() {
                     <span className="font-mono-num">Unit {l.unit_number}</span>
                   </div>
                   <div className="flex items-center justify-between pt-3 border-t border-zinc-100">
-                    <div className="overline text-zinc-500 text-[10px]">By {l.landlord_name}</div>
+                    <div className="uppercase tracking-[0.18em] text-zinc-500 text-[11px]">By {l.landlord_name}</div>
                     <div className="text-xs font-semibold text-zinc-950 flex items-center gap-1 group-hover:gap-2 transition-all">
                       View <ArrowRight className="w-3 h-3" />
                     </div>
@@ -171,6 +206,45 @@ export default function MarketplacePage() {
             ))}
           </div>
         )}
+        {totalPages > 1 && (
+  <div className="flex items-center justify-center gap-3 mt-14 mb-10">
+
+    <Button
+      variant="outline"
+      disabled={currentPage === 1}
+      onClick={() => setCurrentPage((p) => p - 1)}
+      className="rounded-md"
+    >
+      Previous
+    </Button>
+
+    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+
+      <button
+        key={page}
+        onClick={() => setCurrentPage(page)}
+        className={`w-10 h-10 rounded-md text-sm font-semibold transition-all ${
+          currentPage === page
+            ? "bg-zinc-950 text-white shadow-md"
+            : "bg-white border border-zinc-200 hover:border-zinc-400"
+        }`}
+      >
+        {page}
+      </button>
+
+    ))}
+
+    <Button
+      variant="outline"
+      disabled={currentPage === totalPages}
+      onClick={() => setCurrentPage((p) => p + 1)}
+      className="rounded-md"
+    >
+      Next
+    </Button>
+
+  </div>
+)}
       </section>
 
       <footer className="border-t border-zinc-200 mt-12">

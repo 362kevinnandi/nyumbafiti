@@ -17,8 +17,14 @@ export default function PropertiesPage() {
   const [tab, setTab] = useState("properties");
   const [open, setOpen] = useState(false);
   const [unitOpen, setUnitOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", address: "", description: "", image_url: "" });
-  const [unitForm, setUnitForm] = useState({ property_id: "", unit_number: "", rent_amount: 0, bedrooms: 1, description: "" });
+const [form, setForm] = useState({
+  name: "",
+  address: "",
+  description: "",
+});
+
+const [images, setImages] = useState([]);  
+const [unitForm, setUnitForm] = useState({ property_id: "", unit_number: "", rent_amount: 0, bedrooms: 1, description: "" });
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -30,17 +36,43 @@ export default function PropertiesPage() {
   useEffect(() => { load(); }, [load]);
 
   const createProperty = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post("/properties", form);
-      toast.success("Property created");
-      setOpen(false);
-      setForm({ name: "", address: "", description: "", image_url: "" });
-      load();
-    } catch (err) {
-      toast.error(formatApiError(err, "Failed"));
-    }
-  };
+  e.preventDefault();
+
+  try {
+    const formData = new FormData();
+
+    formData.append("name", form.name);
+    formData.append("address", form.address);
+    formData.append("description", form.description);
+
+    images.forEach((image) => {
+      formData.append("images", image);
+    });
+
+    await api.post("/properties", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    toast.success("Property created");
+
+    setOpen(false);
+
+    setForm({
+      name: "",
+      address: "",
+      description: "",
+    });
+
+    setImages([]);
+
+    load();
+
+  } catch (err) {
+    toast.error(formatApiError(err, "Failed"));
+  }
+};
 
   const createUnit = async (e) => {
     e.preventDefault();
@@ -94,8 +126,39 @@ export default function PropertiesPage() {
                   <div><Label className="overline">Name</Label><Input required value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} className="mt-1" data-testid="property-name-input" /></div>
                   <div><Label className="overline">Address</Label><Input required value={form.address} onChange={(e) => setForm({...form, address: e.target.value})} placeholder="e.g. Westlands, Nairobi" className="mt-1" data-testid="property-address-input" /></div>
                   <div><Label className="overline">Description</Label><Input value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} className="mt-1" /></div>
-                  <div><Label className="overline">Image URL (optional)</Label><Input value={form.image_url} onChange={(e) => setForm({...form, image_url: e.target.value})} className="mt-1" placeholder="https://..." /></div>
-                  <DialogFooter>
+<div>
+  <Label className="overline">
+    Property Images (Max 5)
+  </Label>
+
+  <Input
+    type="file"
+    accept="image/*"
+    multiple
+    className="mt-1"
+    onChange={(e) => {
+      const files = Array.from(e.target.files || []);
+
+      if (files.length > 5) {
+        toast.error("Maximum 5 images allowed");
+        return;
+      }
+
+      setImages(files);
+    }}
+  />
+
+  <div className="flex gap-2 flex-wrap mt-3">
+    {images.map((file, index) => (
+      <img
+        key={index}
+        src={URL.createObjectURL(file)}
+        alt=""
+        className="w-20 h-20 object-cover rounded-md border"
+      />
+    ))}
+  </div>
+</div>                  <DialogFooter>
                     <Button type="submit" className="bg-zinc-950 hover:bg-zinc-800" data-testid="property-submit-button">Create</Button>
                   </DialogFooter>
                 </form>
@@ -147,8 +210,17 @@ export default function PropertiesPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" data-testid="properties-grid">
               {properties.map((p) => (
+                
                 <div key={p.id} className="bg-white border border-zinc-200 rounded-md overflow-hidden card-hover" data-testid={`property-card-${p.id}`}>
-                  <div className="relative h-44 bg-zinc-100" style={{ backgroundImage: `url(${p.image_url || HERO_IMG})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                  <div className="relative h-44 bg-zinc-100" style={{
+ backgroundImage: `url(${
+  p.images?.[0]
+    ? `http://localhost:8001/${p.images[0].replace(/^\/+/, "")}`
+    : HERO_IMG
+})`,
+  backgroundSize: 'cover',
+  backgroundPosition: 'center'
+}}>
                     <div className="absolute top-3 right-3 bg-white/95 backdrop-blur px-2 py-0.5 rounded-sm text-xs font-mono-num font-semibold">{p.units_count} units</div>
                     {p.approval_status === "pending" && (
                       <div className="absolute top-3 left-3 bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider">Awaiting admin approval</div>

@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
-from fastapi import APIRouter, Depends, FastAPI  # noqa: E402
+from fastapi import APIRouter, Depends, FastAPI
+from fastapi.staticfiles import StaticFiles  # noqa: E402
 from starlette.middleware.cors import CORSMiddleware  # noqa: E402
 
 from auth import get_current_user  # noqa: E402
@@ -95,6 +96,7 @@ async def _seed_admin():
 
 
 app = FastAPI(title="Nairobi Rental Management", lifespan=lifespan)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 api_router = APIRouter(prefix="/api")
 
