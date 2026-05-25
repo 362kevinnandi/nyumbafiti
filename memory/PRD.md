@@ -1,114 +1,116 @@
 # Nyumba OS — Product Requirements Document (PRD)
 
 ## Original Problem Statement
-Build a comprehensive rental management system for Nairobi serving multiple roles (Landlord, Tenant, Caretaker, Prospect, Super Admin). Core features:
-- Property + unit management
-- M-Pesa STK Push for rent & bills
-- Issue ticketing with caretaker assignment
-- Public marketplace for vacant units
-- Paid viewings (KES 200) via M-Pesa
-- Super Admin oversight panel with 3.5% commission tracking + approval workflows
+Build a comprehensive rental management system for Nairobi serving multiple roles (Landlord, Tenant, Caretaker, Prospect, Super Admin). Core features: property + unit management, M-Pesa STK Push for rent & bills, issue ticketing, public marketplace for vacant units, paid viewings (KES 200), Super Admin oversight panel with 3.5% commission tracking + approval workflows.
 
 ## Tech Stack
 - Backend: FastAPI + Motor (MongoDB async)
-- Frontend: React 19 + React Router 7 + Shadcn UI + Tailwind + Swiper (carousel)
-- Auth: JWT (custom), bcrypt password hashing
-- Payments: M-Pesa Daraja STK Push (currently DEMO MODE — auto-resolves after ~4s)
+- Frontend: React 19 + React Router 7 + Shadcn UI + Tailwind + Swiper
+- Auth: JWT (custom), bcrypt
+- Payments: M-Pesa Daraja STK Push (DEMO MODE auto-confirm)
+- PDF: reportlab · QR: qrcode · AI: Claude Sonnet 4.5 via emergentintegrations (EMERGENT_LLM_KEY)
 
 ## Roles
-- **Landlord**: Manages own properties, units, tenants, caretakers, bills, issues
-- **Tenant**: Views own bills, pays via M-Pesa, raises issues
-- **Caretaker**: Assigned issues by landlord, resolves tickets
-- **Prospect**: Auto-created when booking a viewing; tracks own viewings
-- **Admin (Super)**: Pre-seeded from env vars. Platform-wide visibility, approvals, payouts, commission settings, property edit/delete/feature
+- Landlord, Tenant, Caretaker, Prospect, Super Admin
 
-## Implemented Features (cumulative)
+## Implemented Features
 
-### MVP (prior to this session)
-- Auth (register/login) with JWT
-- Property + Unit CRUD per landlord
-- Tenant assignment to units
-- Caretaker creation
-- Monthly bill auto-generation
-- M-Pesa STK Push (demo mode)
-- Issue ticketing with messages
-- Public marketplace + paid viewings
-- Super Admin dashboard (3.5% commission tracking, payouts, settings, approvals queue)
+### MVP
+- JWT Auth, Property/Unit/Tenant CRUD, monthly bill auto-gen, M-Pesa STK Push (demo), Issue ticketing, Public marketplace + paid viewings, Super Admin (3.5% commission, payouts, settings, approvals queue).
 
-### Phase 1: Property Foundations — COMPLETED Feb 2026
-1. **Local image uploads** — up to 5 images per property, stored under `backend/uploads/properties/`, served via `/api/uploads/...` (K8s ingress-compatible)
-2. **7 fixed property categories** — `apartment`, `bedsitter`, `single_room`, `self_contained`, `standalone`, `compound`, `airbnb`
-3. **Marketplace carousel** — Swiper-based, 4 cards/row × 2 rows = 8 per slide, autoplay 5s, navigation arrows + clickable pagination dots, category filter chips, search + max-rent
-4. **Admin Property Management** — `/admin/properties` page: list all, search, Edit (name/address/description/category), Delete (cascades units), Feature/Unfeature (gold badge, sorts first on marketplace)
-5. **`mediaUrl()` helper** in `frontend/src/lib/api.js` — builds correct absolute URLs that work both locally and through K8s preview/production
+### Phase 1 — Property Foundations (Feb 2026) ✅
+- Local image uploads (≤5 per property) at `/api/uploads/properties/`
+- 7 property categories
+- Marketplace Swiper carousel (4×2/slide, autoplay 5s)
+- Admin `/admin/properties` (Edit/Delete/Feature with gold badge)
+- `mediaUrl()` helper + K8s-routable `/api/uploads` mount
+
+### Phase 2 — Community Hub (Feb 2026) ✅
+- **Announcements**: landlord→tenants (own property), admin→global. Pin, attach PDF/images (5MB max), audience notification fan-out.
+- **Per-property Forums**: tenants post + reply within own property; landlord/admin can pin/lock/delete; reply notifies thread author.
+- **Attachments**: PDF + image only, 5MB max, MIME validated.
+
+### Phase 3 — Yard Sale Marketplace (Feb 2026) ✅
+- Free listings (tenant/landlord/caretaker) with up to 5 images, 8 categories.
+- Filter chips, featured-first sorting.
+- **KES 100 "Feature for 7 days"** via M-Pesa STK Push (purpose `yard_sale_feature`). Auto-expires after 7 days.
+
+### Phase 4 — Smart Features (Feb 2026) ✅
+- **Digital Lease**: reportlab PDF generation, tenant e-sign with IP+timestamp, re-renders PDF post-signature.
+- **QR Visitor Passes**: tenant creates one-time pass (24h expiry); caretaker scans token to log entry; auto-expire stale; tenant notified on arrival.
+- **In-app Notifications**: bell icon (top-right, polls every 30s), unread badge, mark-read on click. Fired on: bill created/auto-gen, payment success, announcement, forum reply, lease pending/signed, visitor arrived, yard sale featured.
+- **AI Property Match** on `/marketplace`: Claude Sonnet 4.5 via Emergent LLM key. Falls back to "cheapest 3 matching filters" if LLM unavailable.
 
 ## Architecture
 
 ```
 /app/
 ├── backend/
-│   ├── routers/ (auth_router, properties_router, users_router, bills_router,
-│   │             payments_router, issues_router, viewings_router,
-│   │             admin_router, oversight_router)
-│   ├── tests/   (test_phase1_properties.py — 19 tests, 100% pass)
-│   ├── uploads/properties/  (local image storage)
+│   ├── routers/
+│   │   ├── auth_router.py, bills_router.py, issues_router.py, payments_router.py,
+│   │   ├── properties_router.py, users_router.py, viewings_router.py,
+│   │   ├── admin_router.py, oversight_router.py,
+│   │   ├── community_router.py    ← Phase 2
+│   │   ├── yardsale_router.py     ← Phase 3
+│   │   ├── leases_router.py       ← Phase 4 (PDF lease)
+│   │   ├── visitors_router.py     ← Phase 4 (QR)
+│   │   ├── notifications_router.py← Phase 4
+│   │   └── ai_router.py           ← Phase 4 (Claude Sonnet 4.5)
+│   ├── tests/test_phase1_properties.py (19), test_phase234.py (30)
+│   ├── notifications.py (helpers)
 │   ├── auth.py, db.py, models.py, mpesa.py, server.py
-│   └── .env
-├── frontend/
-│   ├── src/
-│   │   ├── components/ (AppShell.jsx, ErrorBoundary.jsx, ui/*)
-│   │   ├── lib/ (api.js — exports mediaUrl helper, auth.jsx)
-│   │   ├── pages/ (Marketplace, MarketplaceDetail with Swiper, Properties,
-│   │   │            Tenants, Caretakers, Bills, Payments, Issues, Viewings,
-│   │   │            admin/AdminProperties, admin/Admin*)
-│   │   └── App.js, index.js
-│   └── .env
-├── memory/
-│   ├── PRD.md
-│   └── test_credentials.md
-└── test_reports/  (iteration_1..6.json)
+│   └── uploads/{properties,community,yardsale,leases}/
+├── frontend/src/
+│   ├── pages/
+│   │   ├── Marketplace.jsx (Swiper + AI Match button)
+│   │   ├── MarketplaceDetail.jsx, Properties.jsx, Tenants.jsx, ...
+│   │   ├── Community.jsx       ← P2
+│   │   ├── YardSale.jsx        ← P3
+│   │   ├── Leases.jsx          ← P4
+│   │   ├── Visitors.jsx        ← P4
+│   │   └── admin/AdminProperties.jsx, Admin*.jsx
+│   ├── components/
+│   │   ├── AppShell.jsx (sidebar updated, top-right bell)
+│   │   ├── NotificationBell.jsx ← P4
+│   │   └── AiRecommendButton.jsx ← P4
+│   └── lib/api.js (mediaUrl, formatKES, formatApiError)
+├── memory/PRD.md, test_credentials.md
+├── test_reports/iteration_1..7.json
+└── TESTING_SCENARIOS_PHASE_234.md
 ```
 
-## Key API Endpoints (new in Phase 1)
-- `POST /api/properties` (multipart): name, address, description, category, images[]
-- `PATCH /api/properties/{id}`: landlord can edit own (name/address/description/category); admin can edit any + toggle `featured`
-- `DELETE /api/properties/{id}`: landlord deletes own; admin deletes any (cascades units)
-- `GET /api/public/listings?category=X`: returns vacant listings, featured-first, with `category` & `featured` fields on property
-- `GET /api/admin/properties`: admin view of all properties + landlord names
-- `GET /api/uploads/properties/{file}`: serves uploaded images (K8s-routable)
+## Key API Endpoints (Phase 2/3/4)
+- Announcements: `POST/GET/DELETE /api/announcements`, `PATCH /api/announcements/{id}/pin`
+- Forum: `POST/GET /api/forum/threads`, `GET /api/forum/threads/{id}`, `POST /api/forum/threads/{id}/replies`, `PATCH /api/forum/threads/{id}/moderate`, `DELETE /api/forum/threads/{id}`
+- Yard sale: `POST/GET/PATCH/DELETE /api/yard-sale/listings`, `POST /api/yard-sale/listings/{id}/feature`
+- Leases: `POST/GET /api/leases`, `GET /api/leases/{id}`, `POST /api/leases/{id}/sign`, `DELETE /api/leases/{id}`
+- Visitor passes: `POST/GET /api/visitor-passes`, `POST /api/visitor-passes/scan/{token}`, `DELETE /api/visitor-passes/{id}`
+- Notifications: `GET /api/notifications`, `PATCH /api/notifications/{id}/read`, `POST /api/notifications/mark-all-read`
+- AI: `POST /api/ai/recommend-properties`
 
-## Key DB Schema additions
-- `properties.category`: PropertyCategory enum, default `"apartment"`
-- `properties.featured`: bool, default `false`
+## DB Collections (Phase 2/3/4)
+`announcements`, `forum_threads`, `forum_replies`, `yard_sale`, `leases`, `visitor_passes`, `notifications`
 
-## Backlog / Roadmap
-
-### P2 — Phase 2: Tenant Community Hub
-- Landlord/admin announcements broadcast to tenants per property
-- Per-property forum threads (tenant-only)
-- File sharing in threads (rules, notices, PDFs)
-- Admin moderation dashboard
-
-### P3 — Phase 3: Tenant Marketplace / Yard Sale
-- Tenants list items for sale within their property/landlord network
-- Optional KES listing fee via M-Pesa
-- Featured listings (paid boost)
-
-### P4 — Phase 4: Smart Features
-- AI property recommendations (Emergent LLM key, Claude Sonnet 4.5)
-- Digital lease agreements with e-signature
-- QR-code visitor management at the gate (caretaker scans on entry)
-- Auto reminders (SMS/WhatsApp) for due bills
+## Roadmap (Backlog)
 
 ### P5 — Production Hardening
-- Real M-Pesa Daraja credentials (replace demo mode)
-- Image size/MIME validation, virus scan
-- Async file I/O (aiofiles)
+- Real M-Pesa Daraja credentials
+- Image size/MIME advanced validation, virus scan
+- Async file I/O via aiofiles
 - Rate limiting on public endpoints
+- DRY shared `uploads.py` for attachment helpers (community + yardsale)
+- Move lease PDF template to `backend/pdf/lease_template.py`
+- Email/SMS notifications channel (Resend / Twilio) — currently in-app only
 
-## Known Issues / Mocks
-- M-Pesa runs in DEMO MODE — auto-confirms after ~4 seconds (no Daraja keys set)
-- No size limit / MIME validation on uploaded property images (advisory)
+### P6 — Engagement Boosters (suggestions)
+- Paid "Featured Property" for landlords on marketplace (KES 500/mo) — natural extension of yard sale boost
+- Tenant referral credits
+- Caretaker mobile-first scan UI with native camera QR decoding
+
+## Demo Mode Notes
+- M-Pesa STK auto-confirms after ~4s (no Daraja keys)
+- AI fallback to "lowest rent matching" if EMERGENT_LLM_KEY missing or LLM error
+- Notifications poll every 30s (no websockets yet)
 
 ## Last Updated
-Feb 2026 — Phase 1 complete (image uploads, categories, marketplace carousel, admin property management). Backend 19/19 tests pass. Frontend smoke-tested.
+Feb 2026 — Phases 1+2+3+4 complete. Backend 49/49 tests pass. Manual test scenarios in `/app/TESTING_SCENARIOS_PHASE_234.md`.
