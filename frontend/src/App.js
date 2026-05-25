@@ -26,6 +26,10 @@ import AdminApprovalsPage from "@/pages/admin/AdminApprovals";
 import AdminBillsPage from "@/pages/admin/AdminBills";
 import AdminIssuesPage from "@/pages/admin/AdminIssues";
 import AdminPropertiesPage from "@/pages/admin/AdminProperties";
+import CommunityPage from "@/pages/Community";
+import YardSalePage from "@/pages/YardSale";
+import LeasesPage from "@/pages/Leases";
+import VisitorsPage from "@/pages/Visitors";
 
 function RequireAuth({ children, roles }) {
   const { user, loading } = useAuth();
@@ -74,6 +78,10 @@ export default function App() {
             <Route path="/admin/bills" element={<RequireAuth roles={["admin"]}><AdminBillsPage /></RequireAuth>} />
             <Route path="/admin/issues" element={<RequireAuth roles={["admin"]}><AdminIssuesPage /></RequireAuth>} />
             <Route path="/admin/properties" element={<RequireAuth roles={["admin"]}><AdminPropertiesPage /></RequireAuth>} />
+            <Route path="/community" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "admin"]}><CommunityPage /></RequireAuth>} />
+            <Route path="/yard-sale" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "admin"]}><YardSalePage /></RequireAuth>} />
+            <Route path="/leases" element={<RequireAuth roles={["landlord", "tenant", "admin"]}><LeasesPage /></RequireAuth>} />
+            <Route path="/visitors" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "admin"]}><VisitorsPage /></RequireAuth>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

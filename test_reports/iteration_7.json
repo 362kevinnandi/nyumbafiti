@@ -1,0 +1,43 @@
+{
+  "summary": "Phases 2/3/4 (Community Hub, Yard Sale + KES 100 feature-payment, Leases with PDF + e-sign, QR Visitor Passes, Notifications, AI Recommendations) end-to-end backend + frontend smoke tested. Backend: 30/30 pytest passing in /app/backend/tests/test_phase234.py. Phase 1 regression: 19/19 still passing. Frontend: /community, /yard-sale, /leases, /visitors, /marketplace all render for landlord+admin; NotificationBell visible top-right; AI Match button visible on /marketplace; Announcements + Forum tabs render with seeded TEST_ data. M-Pesa demo-mode callback flips listing.featured=true within ~5s as expected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "/leases page load", "issue": "Two 404 console errors observed when landlord loads /leases (likely stale lease PDF link from older test data — current API GETs all return 200 in pytest). Non-blocking but worth a glance.", "affected_selectors": ["console: GET /api/uploads/leases/lease_*.pdf"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase234.py",
+    "/app/backend/tests/test_phase1_properties.py",
+    "/app/test_reports/pytest/phase234_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: investigate the two 404s on /leases page (likely orphan PDF file references for cancelled/old leases — purge or null-check pdf_path before rendering download link).",
+    "OPTIONAL: leases_router._build_pdf is ~100 lines of layout — consider extracting to /app/backend/pdf/lease_template.py to keep router under 300 lines.",
+    "OPTIONAL: yardsale_router and community_router both have nearly identical _save_attachments / _save_images helpers — DRY into a shared uploads.py module with size+MIME validation."
+  ],
+  "critical_code_review_comments": [
+    "Community attachments validate MIME prefix + 5MB cap correctly. Yard-sale uses shutil.copyfileobj (sync) and skips size cap — for >5MB images this would block the event loop. Recommend matching community's `await f.read()` + size check + aiofiles.",
+    "leases_router writes PDF with synchronous `with open(...) as f: f.write(pdf_bytes)` inside async handler — fine for small PDFs but inconsistent with async DB calls. Same for QR PNG generation.",
+    "visitor_passes scan endpoint correctly enforces caretaker.landlord_id == pass.landlord_id and admin/landlord-owner can scan. Double-scan correctly returns 400.",
+    "ai_router has graceful LLM fallback (sort-by-rent) when EMERGENT_LLM_KEY missing or LLM errors — verified by test_recommend_returns_structure.",
+    "notifications.py notify_user/notify_many correctly attaches user_id, type, title, body, link, read=False, created_at — verified via /notifications GET response shape and unread_count behavior after mark-all-read.",
+    "_can_access_property_forum tenant branch requires user['unit_id'] to be present and unit.property_id match — correct. Caretaker uses landlord_id match — correct.",
+    "Yard-sale feature endpoint creates payment with purpose='yard_sale_feature' and yard_sale_id linked; payments_router._process_callback_payload branches on this and flips featured=true / featured_until = now+7days — verified end-to-end in test_feature_payment_demo_flow."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase234.py (new — 30 tests covering Phase 2/3/4 across announcements, forum, yard-sale + demo M-Pesa, leases + e-sign, visitor passes + scan, notifications, AI reco)"
+  ],
+  "success_rate": {"backend": "100% (30/30 phase2-4 + 19/19 phase1)", "frontend": "100% on smoke critical flows"},
+  "test_credentials": "admin@nyumbaos.co.ke / admin123, land@demo.com / demo123, ck@demo.com / care123. Test suite onboards a fresh tenant per run (TEST_tenant_<uniq>@demo.com / tenant123) — needs at least one vacant unit on a landlord property; will create one if none exists.",
+  "seed_data_creation": "Per-run: TEST_ prefixed announcements (property + global), forum thread (deleted in cleanup), 2 yard-sale listings (cleaned up), 1 lease + 1 visitor pass + 1 tenant user. Tenant + lease + visitor pass are NOT auto-cleaned (would require admin endpoints to delete users) — they accumulate across runs but each run uses a unique unit, so it remains correct.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run with: REACT_APP_BACKEND_URL=<url> pytest backend/tests/test_phase234.py backend/tests/test_phase1_properties.py -v. The Phase 4 feature-payment test sleeps 6s for the demo M-Pesa callback — keep that timeout if you refactor. AI test hits Claude Sonnet 4.5 only when >3 candidates match filters; with current seed there's typically <=3, so used_llm=false is the normal result (still valid).",
+  "rca of the issue": "N/A — no failing flows. Initial test failures during authoring were due to a wrong units endpoint path (/properties/{id}/units instead of /units?property_id=) — fixed in the test file. The Phase 1 spec doesn't expose nested units; they live under /api/units with property_id query param."
+}

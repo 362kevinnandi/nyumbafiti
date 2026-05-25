@@ -24,6 +24,12 @@ from routers.users_router import router as users_router  # noqa: E402
 from routers.viewings_router import router as viewings_router  # noqa: E402
 from routers.admin_router import router as admin_router  # noqa: E402
 from routers.oversight_router import router as oversight_router  # noqa: E402
+from routers.community_router import router as community_router  # noqa: E402
+from routers.notifications_router import router as notifications_router  # noqa: E402
+from routers.yardsale_router import router as yardsale_router  # noqa: E402
+from routers.leases_router import router as leases_router  # noqa: E402
+from routers.visitors_router import router as visitors_router  # noqa: E402
+from routers.ai_router import router as ai_router  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -229,6 +235,12 @@ api_router.include_router(issues_router)
 api_router.include_router(viewings_router)
 api_router.include_router(admin_router)
 api_router.include_router(oversight_router)
+api_router.include_router(community_router)
+api_router.include_router(notifications_router)
+api_router.include_router(yardsale_router)
+api_router.include_router(leases_router)
+api_router.include_router(visitors_router)
+api_router.include_router(ai_router)
 
 app.include_router(api_router)
 

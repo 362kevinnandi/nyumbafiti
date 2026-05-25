@@ -31,3 +31,13 @@ async def ensure_indexes():
     await db["viewings"].create_index([("landlord_id", 1), ("status", 1)])
     await db["viewings"].create_index("prospect_id")
     await db["units"].create_index([("occupied", 1), ("rent_amount", 1)])
+    # Phase 2-4 indexes
+    await db["announcements"].create_index([("scope", 1), ("created_at", -1)])
+    await db["forum_threads"].create_index([("property_id", 1), ("created_at", -1)])
+    await db["forum_replies"].create_index([("thread_id", 1), ("created_at", 1)])
+    await db["yard_sale"].create_index([("status", 1), ("featured", -1), ("created_at", -1)])
+    await db["leases"].create_index([("tenant_id", 1)])
+    await db["leases"].create_index([("landlord_id", 1)])
+    await db["visitor_passes"].create_index("token", unique=True)
+    await db["visitor_passes"].create_index([("landlord_id", 1), ("created_at", -1)])
+    await db["notifications"].create_index([("user_id", 1), ("read", 1), ("created_at", -1)])

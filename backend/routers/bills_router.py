@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from auth import get_current_user, require_role
 from db import get_db
 from models import Bill, BillCreate, new_id, now_iso
+from notifications import notify_user
 
 router = APIRouter(tags=["bills"])
 
@@ -97,6 +98,12 @@ async def create_bill(
     }
     await db["bills"].insert_one(doc)
     doc.pop("_id", None)
+    await notify_user(
+        payload.tenant_id, "bill_due",
+        f"New bill: {payload.bill_type.title()} · {payload.period}",
+        f"KES {payload.amount:,.0f} due by {payload.due_date}.",
+        link="/bills",
+    )
     return Bill(**doc)
 
 
@@ -144,6 +151,12 @@ async def generate_monthly_bills(user: dict = Depends(require_role("landlord")))
         }
         await db["bills"].insert_one(doc)
         created += 1
+        await notify_user(
+            unit["tenant_id"], "bill_due",
+            f"Rent bill for {period}",
+            f"KES {unit['rent_amount']:,.0f} due by {due_date.strftime('%Y-%m-%d')}.",
+            link="/bills",
+        )
     return {"created": created, "skipped": skipped, "period": period}
 
 

@@ -257,3 +257,195 @@ class Viewing(BaseModel):
     payment_id: Optional[str] = None
     created_at: str
     updated_at: str
+
+
+# ============ PHASE 2: COMMUNITY HUB ============
+AnnouncementScope = Literal["global", "property"]
+
+
+class AnnouncementCreate(BaseModel):
+    scope: AnnouncementScope
+    property_id: Optional[str] = None  # required when scope=property
+    title: str
+    body: str
+    pinned: bool = False
+
+
+class Announcement(BaseModel):
+    id: str
+    scope: AnnouncementScope
+    property_id: Optional[str] = None
+    landlord_id: Optional[str] = None
+    author_id: str
+    author_name: str
+    author_role: Role
+    title: str
+    body: str
+    attachments: List[str] = []
+    pinned: bool = False
+    created_at: str
+    updated_at: str
+
+
+class ForumThreadCreate(BaseModel):
+    property_id: str
+    title: str
+    body: str
+
+
+class ForumThread(BaseModel):
+    id: str
+    property_id: str
+    landlord_id: str
+    author_id: str
+    author_name: str
+    author_role: Role
+    title: str
+    body: str
+    attachments: List[str] = []
+    pinned: bool = False
+    locked: bool = False
+    replies_count: int = 0
+    last_reply_at: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class ForumReplyCreate(BaseModel):
+    body: str
+
+
+class ForumReply(BaseModel):
+    id: str
+    thread_id: str
+    author_id: str
+    author_name: str
+    author_role: Role
+    body: str
+    attachments: List[str] = []
+    created_at: str
+
+
+# ============ PHASE 3: YARD SALE MARKETPLACE ============
+YardSaleStatus = Literal["active", "sold", "removed"]
+YardSaleCategory = Literal[
+    "electronics", "furniture", "appliances", "clothing",
+    "books", "kitchen", "sports", "other",
+]
+YARD_SALE_CATEGORIES = (
+    "electronics", "furniture", "appliances", "clothing",
+    "books", "kitchen", "sports", "other",
+)
+YARD_SALE_FEATURE_FEE_KES = 100
+YARD_SALE_FEATURE_DAYS = 7
+
+
+class YardSaleListing(BaseModel):
+    id: str
+    seller_id: str  # tenant user id
+    seller_name: str
+    seller_phone: str
+    landlord_id: Optional[str] = None
+    property_id: Optional[str] = None
+    title: str
+    description: str
+    price: float
+    category: YardSaleCategory = "other"
+    images: List[str] = []
+    featured: bool = False
+    featured_until: Optional[str] = None
+    status: YardSaleStatus = "active"
+    created_at: str
+    updated_at: str
+
+
+class YardSaleUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    category: Optional[YardSaleCategory] = None
+    status: Optional[YardSaleStatus] = None
+
+
+# ============ PHASE 4: LEASES ============
+LeaseStatus = Literal["draft", "sent", "signed", "cancelled"]
+
+
+class LeaseCreate(BaseModel):
+    tenant_id: str
+    unit_id: str
+    rent_amount: float
+    deposit_amount: float = 0
+    start_date: str  # YYYY-MM-DD
+    end_date: str
+    terms: str = ""
+
+
+class Lease(BaseModel):
+    id: str
+    landlord_id: str
+    tenant_id: str
+    tenant_name: str
+    unit_id: str
+    property_id: str
+    rent_amount: float
+    deposit_amount: float
+    start_date: str
+    end_date: str
+    terms: str
+    pdf_path: Optional[str] = None
+    status: LeaseStatus = "draft"
+    signed_at: Optional[str] = None
+    signed_ip: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+# ============ PHASE 4: VISITOR PASSES (QR) ============
+VisitorPassStatus = Literal["active", "used", "expired", "cancelled"]
+
+
+class VisitorPassCreate(BaseModel):
+    visitor_name: str
+    visitor_phone: Optional[str] = ""
+    expected_time: str  # ISO datetime
+    notes: Optional[str] = ""
+
+
+class VisitorPass(BaseModel):
+    id: str
+    token: str  # unique QR code token
+    tenant_id: str
+    tenant_name: str
+    landlord_id: str
+    property_id: str
+    unit_id: str
+    visitor_name: str
+    visitor_phone: str
+    expected_time: str
+    notes: str = ""
+    status: VisitorPassStatus = "active"
+    used_at: Optional[str] = None
+    used_by_caretaker_id: Optional[str] = None
+    used_by_caretaker_name: Optional[str] = None
+    expires_at: str
+    created_at: str
+
+
+# ============ PHASE 4: NOTIFICATIONS ============
+NotificationKind = Literal[
+    "bill_due", "announcement", "issue_update", "forum_reply",
+    "lease_pending", "lease_signed", "visitor_arrived", "payment_succeeded",
+    "yard_sale_featured", "system",
+]
+
+
+class Notification(BaseModel):
+    id: str
+    user_id: str
+    kind: NotificationKind
+    title: str
+    body: str
+    link: Optional[str] = None
+    read: bool = False
+    created_at: str

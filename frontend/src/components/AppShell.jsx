@@ -1,9 +1,11 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
+import NotificationBell from "@/components/NotificationBell";
 import {
   Building2, LayoutDashboard, Home, Users, FileText,
   CreditCard, Wrench, HardHat, LogOut, ChevronRight, Calendar,
   ShieldCheck, Wallet, Settings, ClipboardCheck, MessageSquare,
+  Megaphone, Tag, FileSignature, QrCode,
 } from "lucide-react";
 
 const NAV_BY_ROLE = {
@@ -16,16 +18,26 @@ const NAV_BY_ROLE = {
     { to: "/payments", label: "Payments", icon: CreditCard },
     { to: "/issues", label: "Issues", icon: Wrench },
     { to: "/viewings", label: "Viewings", icon: Calendar },
+    { to: "/leases", label: "Leases", icon: FileSignature },
+    { to: "/community", label: "Community", icon: Megaphone },
+    { to: "/yard-sale", label: "Yard Sale", icon: Tag },
+    { to: "/visitors", label: "Visitors", icon: QrCode },
   ],
   tenant: [
     { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
     { to: "/bills", label: "My Bills", icon: FileText },
     { to: "/payments", label: "Payment History", icon: CreditCard },
     { to: "/issues", label: "Report Issues", icon: Wrench },
+    { to: "/leases", label: "My Lease", icon: FileSignature },
+    { to: "/community", label: "Community", icon: Megaphone },
+    { to: "/yard-sale", label: "Yard Sale", icon: Tag },
+    { to: "/visitors", label: "Visitors", icon: QrCode },
   ],
   caretaker: [
     { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
     { to: "/issues", label: "Tickets", icon: Wrench },
+    { to: "/visitors", label: "Visitor Entry", icon: QrCode },
+    { to: "/community", label: "Community", icon: Megaphone },
   ],
   prospect: [
     { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -40,6 +52,8 @@ const NAV_BY_ROLE = {
     { to: "/admin/issues", label: "All Issues", icon: MessageSquare },
     { to: "/admin/payments", label: "All Payments", icon: CreditCard },
     { to: "/admin/payouts", label: "Payouts", icon: Wallet },
+    { to: "/community", label: "Community", icon: Megaphone },
+    { to: "/yard-sale", label: "Yard Sale", icon: Tag },
     { to: "/admin/settings", label: "Settings", icon: Settings },
   ],
 };
@@ -108,12 +122,19 @@ export default function AppShell() {
           <Building2 className="w-5 h-5" />
           <span className="font-display font-black text-base">NYUMBA OS</span>
         </div>
-        <button onClick={logout} className="text-xs font-semibold text-zinc-700">
-          Sign out
-        </button>
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <button onClick={logout} className="text-xs font-semibold text-zinc-700">
+            Sign out
+          </button>
+        </div>
       </div>
 
       <main className="flex-1 md:ml-0 mt-14 md:mt-0 overflow-x-hidden">
+        {/* Desktop top-right bell */}
+        <div className="hidden md:flex justify-end items-center px-6 pt-4">
+          <NotificationBell />
+        </div>
         {/* Mobile nav scroller */}
         <div className="md:hidden border-b border-zinc-200 bg-white overflow-x-auto px-2 py-2 flex gap-1">
           {nav.map((n) => (
@@ -131,7 +152,7 @@ export default function AppShell() {
           ))}
         </div>
 
-        <div className="p-4 sm:p-8 max-w-7xl">
+        <div className="px-4 pb-4 sm:px-8 sm:pb-8 pt-2 max-w-7xl">
           <Outlet />
         </div>
       </main>
