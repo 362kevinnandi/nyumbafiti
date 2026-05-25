@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, formatApiError, formatKES } from "@/lib/api";
+import { api, formatApiError, formatKES, mediaUrl } from "@/lib/api";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,9 +7,22 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, Building, Home as HomeIcon, Trash2, MapPin } from "lucide-react";
+import { Plus, Building, Home as HomeIcon, Trash2, MapPin, Pencil } from "lucide-react";
 
 const HERO_IMG = "https://images.unsplash.com/photo-1630241466166-22e43156d8c0?crop=entropy&cs=srgb&fm=jpg&q=85&w=800";
+
+export const PROPERTY_CATEGORIES = [
+  { value: "apartment", label: "Apartment" },
+  { value: "bedsitter", label: "Bedsitter" },
+  { value: "single_room", label: "Single Room" },
+  { value: "self_contained", label: "Self-Contained" },
+  { value: "standalone", label: "Standalone" },
+  { value: "compound", label: "Compound" },
+  { value: "airbnb", label: "Airbnb" },
+];
+
+const categoryLabel = (v) =>
+  PROPERTY_CATEGORIES.find((c) => c.value === v)?.label || "Apartment";
 
 export default function PropertiesPage() {
   const [properties, setProperties] = useState([]);
@@ -17,14 +30,16 @@ export default function PropertiesPage() {
   const [tab, setTab] = useState("properties");
   const [open, setOpen] = useState(false);
   const [unitOpen, setUnitOpen] = useState(false);
-const [form, setForm] = useState({
-  name: "",
-  address: "",
-  description: "",
-});
+  const [form, setForm] = useState({
+    name: "",
+    address: "",
+    description: "",
+    category: "apartment",
+  });
+  const [editId, setEditId] = useState(null);
 
-const [images, setImages] = useState([]);  
-const [unitForm, setUnitForm] = useState({ property_id: "", unit_number: "", rent_amount: 0, bedrooms: 1, description: "" });
+  const [images, setImages] = useState([]);
+  const [unitForm, setUnitForm] = useState({ property_id: "", unit_number: "", rent_amount: 0, bedrooms: 1, description: "" });
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -35,44 +50,54 @@ const [unitForm, setUnitForm] = useState({ property_id: "", unit_number: "", ren
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const createProperty = async (e) => {
-  e.preventDefault();
-
-  try {
-    const formData = new FormData();
-
-    formData.append("name", form.name);
-    formData.append("address", form.address);
-    formData.append("description", form.description);
-
-    images.forEach((image) => {
-      formData.append("images", image);
-    });
-
-    await api.post("/properties", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-
-    toast.success("Property created");
-
-    setOpen(false);
-
-    setForm({
-      name: "",
-      address: "",
-      description: "",
-    });
-
+  const resetForm = () => {
+    setForm({ name: "", address: "", description: "", category: "apartment" });
     setImages([]);
+    setEditId(null);
+  };
 
-    load();
+  const openEdit = (p) => {
+    setEditId(p.id);
+    setForm({
+      name: p.name || "",
+      address: p.address || "",
+      description: p.description || "",
+      category: p.category || "apartment",
+    });
+    setImages([]);
+    setOpen(true);
+  };
 
-  } catch (err) {
-    toast.error(formatApiError(err, "Failed"));
-  }
-};
+  const createOrUpdateProperty = async (e) => {
+    e.preventDefault();
+    try {
+      if (editId) {
+        await api.patch(`/properties/${editId}`, {
+          name: form.name,
+          address: form.address,
+          description: form.description,
+          category: form.category,
+        });
+        toast.success("Property updated");
+      } else {
+        const formData = new FormData();
+        formData.append("name", form.name);
+        formData.append("address", form.address);
+        formData.append("description", form.description);
+        formData.append("category", form.category);
+        images.forEach((image) => formData.append("images", image));
+        await api.post("/properties", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        toast.success("Property created");
+      }
+      setOpen(false);
+      resetForm();
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err, "Failed"));
+    }
+  };
 
   const createUnit = async (e) => {
     e.preventDefault();
@@ -112,7 +137,7 @@ const [unitForm, setUnitForm] = useState({ property_id: "", unit_number: "", ren
         title="Properties & Units"
         action={
           <div className="flex gap-2">
-            <Dialog open={open} onOpenChange={setOpen}>
+            <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetForm(); }}>
               <DialogTrigger asChild>
                 <Button className="bg-zinc-950 hover:bg-zinc-800 rounded-md" data-testid="add-property-button">
                   <Plus className="w-4 h-4 mr-1.5" /> Add Property
@@ -120,46 +145,62 @@ const [unitForm, setUnitForm] = useState({ property_id: "", unit_number: "", ren
               </DialogTrigger>
               <DialogContent className="rounded-md">
                 <DialogHeader>
-                  <DialogTitle className="font-display font-black text-2xl">New Property</DialogTitle>
+                  <DialogTitle className="font-display font-black text-2xl">
+                    {editId ? "Edit Property" : "New Property"}
+                  </DialogTitle>
                 </DialogHeader>
-                <form onSubmit={createProperty} className="space-y-4 mt-2" data-testid="property-form">
+                <form onSubmit={createOrUpdateProperty} className="space-y-4 mt-2" data-testid="property-form">
                   <div><Label className="overline">Name</Label><Input required value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} className="mt-1" data-testid="property-name-input" /></div>
                   <div><Label className="overline">Address</Label><Input required value={form.address} onChange={(e) => setForm({...form, address: e.target.value})} placeholder="e.g. Westlands, Nairobi" className="mt-1" data-testid="property-address-input" /></div>
+                  <div>
+                    <Label className="overline">Category</Label>
+                    <select
+                      required
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      className="mt-1 w-full h-10 border border-zinc-300 rounded-md px-3 bg-white text-sm"
+                      data-testid="property-category-select"
+                    >
+                      {PROPERTY_CATEGORIES.map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div><Label className="overline">Description</Label><Input value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} className="mt-1" /></div>
-<div>
-  <Label className="overline">
-    Property Images (Max 5)
-  </Label>
-
-  <Input
-    type="file"
-    accept="image/*"
-    multiple
-    className="mt-1"
-    onChange={(e) => {
-      const files = Array.from(e.target.files || []);
-
-      if (files.length > 5) {
-        toast.error("Maximum 5 images allowed");
-        return;
-      }
-
-      setImages(files);
-    }}
-  />
-
-  <div className="flex gap-2 flex-wrap mt-3">
-    {images.map((file, index) => (
-      <img
-        key={index}
-        src={URL.createObjectURL(file)}
-        alt=""
-        className="w-20 h-20 object-cover rounded-md border"
-      />
-    ))}
-  </div>
-</div>                  <DialogFooter>
-                    <Button type="submit" className="bg-zinc-950 hover:bg-zinc-800" data-testid="property-submit-button">Create</Button>
+                  {!editId && (
+                    <div>
+                      <Label className="overline">Property Images (Max 5)</Label>
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="mt-1"
+                        data-testid="property-images-input"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length > 5) {
+                            toast.error("Maximum 5 images allowed");
+                            return;
+                          }
+                          setImages(files);
+                        }}
+                      />
+                      <div className="flex gap-2 flex-wrap mt-3">
+                        {images.map((file, index) => (
+                          <img
+                            key={index}
+                            src={URL.createObjectURL(file)}
+                            alt=""
+                            className="w-20 h-20 object-cover rounded-md border"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <DialogFooter>
+                    <Button type="submit" className="bg-zinc-950 hover:bg-zinc-800" data-testid="property-submit-button">
+                      {editId ? "Save changes" : "Create"}
+                    </Button>
                   </DialogFooter>
                 </form>
               </DialogContent>
@@ -213,20 +254,22 @@ const [unitForm, setUnitForm] = useState({ property_id: "", unit_number: "", ren
                 
                 <div key={p.id} className="bg-white border border-zinc-200 rounded-md overflow-hidden card-hover" data-testid={`property-card-${p.id}`}>
                   <div className="relative h-44 bg-zinc-100" style={{
- backgroundImage: `url(${
-  p.images?.[0]
-    ? `http://localhost:8001/${p.images[0].replace(/^\/+/, "")}`
-    : HERO_IMG
-})`,
-  backgroundSize: 'cover',
-  backgroundPosition: 'center'
-}}>
+                    backgroundImage: `url(${p.images?.[0] ? mediaUrl(p.images[0]) : HERO_IMG})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}>
                     <div className="absolute top-3 right-3 bg-white/95 backdrop-blur px-2 py-0.5 rounded-sm text-xs font-mono-num font-semibold">{p.units_count} units</div>
+                    <div className="absolute bottom-3 left-3 bg-zinc-950/85 text-white px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider backdrop-blur">
+                      {categoryLabel(p.category)}
+                    </div>
                     {p.approval_status === "pending" && (
                       <div className="absolute top-3 left-3 bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider">Awaiting admin approval</div>
                     )}
                     {p.approval_status === "rejected" && (
                       <div className="absolute top-3 left-3 bg-red-100 text-red-800 border border-red-200 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider">Rejected</div>
+                    )}
+                    {p.featured && (
+                      <div className="absolute top-3 left-3 bg-amber-400 text-zinc-950 border border-amber-500 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider shadow">Featured</div>
                     )}
                   </div>
                   <div className="p-5">
@@ -238,9 +281,14 @@ const [unitForm, setUnitForm] = useState({ property_id: "", unit_number: "", ren
                     {p.description && <div className="text-sm text-zinc-600 mb-3 line-clamp-2">{p.description}</div>}
                     <div className="flex justify-between items-center pt-3 border-t border-zinc-100">
                       <div className="overline text-zinc-500">Created {new Date(p.created_at).toLocaleDateString()}</div>
-                      <button onClick={() => deleteProperty(p.id)} className="text-zinc-400 hover:text-red-600 p-1" data-testid={`delete-property-${p.id}`}>
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => openEdit(p)} className="text-zinc-400 hover:text-zinc-900 p-1" data-testid={`edit-property-${p.id}`} title="Edit">
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => deleteProperty(p.id)} className="text-zinc-400 hover:text-red-600 p-1" data-testid={`delete-property-${p.id}`} title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

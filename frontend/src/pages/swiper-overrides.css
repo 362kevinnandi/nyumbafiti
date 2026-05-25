@@ -32,3 +32,26 @@
 .swiper-slide img {
   user-select: none;
 }
+
+/* Marketplace grid carousel — give breathing room for nav arrows and pagination */
+.marketplace-carousel .swiper {
+  padding: 0 8px 40px 8px;
+}
+.marketplace-carousel .swiper-button-next,
+.marketplace-carousel .swiper-button-prev {
+  top: 45%;
+}
+.marketplace-carousel .swiper-pagination {
+  bottom: 4px !important;
+}
+.marketplace-carousel .swiper-pagination-bullet {
+  background: #18181b;
+  opacity: 0.3;
+}
+.marketplace-carousel .swiper-pagination-bullet-active {
+  opacity: 1;
+  background: #18181b;
+  width: 22px;
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}

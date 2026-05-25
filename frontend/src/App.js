@@ -25,6 +25,7 @@ import AdminSettingsPage from "@/pages/admin/AdminSettings";
 import AdminApprovalsPage from "@/pages/admin/AdminApprovals";
 import AdminBillsPage from "@/pages/admin/AdminBills";
 import AdminIssuesPage from "@/pages/admin/AdminIssues";
+import AdminPropertiesPage from "@/pages/admin/AdminProperties";
 
 function RequireAuth({ children, roles }) {
   const { user, loading } = useAuth();
@@ -72,6 +73,7 @@ export default function App() {
             <Route path="/admin/approvals" element={<RequireAuth roles={["admin"]}><AdminApprovalsPage /></RequireAuth>} />
             <Route path="/admin/bills" element={<RequireAuth roles={["admin"]}><AdminBillsPage /></RequireAuth>} />
             <Route path="/admin/issues" element={<RequireAuth roles={["admin"]}><AdminIssuesPage /></RequireAuth>} />
+            <Route path="/admin/properties" element={<RequireAuth roles={["admin"]}><AdminPropertiesPage /></RequireAuth>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

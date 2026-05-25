@@ -23,11 +23,18 @@ def _generate_password(length: int = 10) -> str:
 # ----------- Public marketplace -----------
 
 @router.get("/public/listings")
-async def public_listings(city: Optional[str] = None, max_rent: Optional[float] = None):
+async def public_listings(
+    city: Optional[str] = None,
+    max_rent: Optional[float] = None,
+    category: Optional[str] = None,
+):
     """List all vacant units across all admin-approved properties (public)."""
     db = get_db()
+    prop_filter: dict = {"approval_status": "approved"}
+    if category:
+        prop_filter["category"] = category
     approved_props = await db["properties"].find(
-        {"approval_status": "approved"}, {"_id": 0, "id": 1}
+        prop_filter, {"_id": 0, "id": 1}
     ).to_list(2000)
     approved_prop_ids = {p["id"] for p in approved_props}
     if not approved_prop_ids:
@@ -44,7 +51,6 @@ async def public_listings(city: Optional[str] = None, max_rent: Optional[float] 
     props = await db["properties"].find({"id": {"$in": prop_ids}}, {"_id": 0}).to_list(500)
     p_map = {p["id"]: p for p in props}
     if city:
-        # naive filter on address text
         p_map = {pid: p for pid, p in p_map.items() if city.lower() in (p.get("address") or "").lower()}
     landlords = await db["users"].find(
         {"id": {"$in": landlord_ids}}, {"_id": 0, "id": 1, "full_name": 1}
@@ -62,15 +68,21 @@ async def public_listings(city: Optional[str] = None, max_rent: Optional[float] 
             "rent_amount": u["rent_amount"],
             "bedrooms": u["bedrooms"],
             "description": u.get("description", ""),
- "property": {
-    "id": prop["id"],
-    "name": prop["name"],
-    "address": prop["address"],
-    "description": prop.get("description", ""),
-    "images": prop.get("images", []),
-},
+            "property": {
+                "id": prop["id"],
+                "name": prop["name"],
+                "address": prop["address"],
+                "description": prop.get("description", ""),
+                "category": prop.get("category", "apartment"),
+                "featured": bool(prop.get("featured", False)),
+                "images": prop.get("images", []),
+            },
+            "featured": bool(prop.get("featured", False)),
+            "category": prop.get("category", "apartment"),
             "landlord_name": l_map.get(u["landlord_id"], {}).get("full_name", "Verified Landlord"),
         })
+    # Featured first, then by rent ascending as tiebreaker
+    listings.sort(key=lambda x: (not x["featured"], x["rent_amount"]))
     return listings
 
 
@@ -98,6 +110,8 @@ async def public_listing_detail(unit_id: str):
     "name": prop["name"],
     "address": prop["address"],
     "description": prop.get("description", ""),
+    "category": prop.get("category", "apartment"),
+    "featured": bool(prop.get("featured", False)),
     "images": prop.get("images", []),
 },
         "landlord_name": (landlord or {}).get("full_name", "Verified Landlord"),

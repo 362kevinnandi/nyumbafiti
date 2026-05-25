@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, formatApiError, formatKES } from "@/lib/api";
+import { api, formatApiError, formatKES, mediaUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -93,7 +93,7 @@ export default function MarketplaceDetailPage() {
           src={
             img.startsWith("http")
               ? img
-              : `http://localhost:8001/${img.replace(/^\/+/, "")}`
+              : mediaUrl(img)
           }
           alt={`Property ${index + 1}`}
          className="block w-full h-[400px] object-cover bg-zinc-100 transition-all duration-300"        />
@@ -114,7 +114,7 @@ export default function MarketplaceDetailPage() {
 
     <img
       key={index}
-      src={`http://localhost:8001/${img.replace(/^\/+/, "")}`}
+      src={mediaUrl(img)}
       alt=""
       onClick={() => {
   setActiveImage(index);

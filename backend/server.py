@@ -49,6 +49,15 @@ async def _migrate_approval_status():
         {"approval_status": {"$exists": False}},
         {"$set": {"approval_status": "approved"}},
     )
+    # Backfill new Phase 1 fields
+    await db["properties"].update_many(
+        {"category": {"$exists": False}},
+        {"$set": {"category": "apartment"}},
+    )
+    await db["properties"].update_many(
+        {"featured": {"$exists": False}},
+        {"$set": {"featured": False}},
+    )
     user_res = await db["users"].update_many(
         {"role": {"$in": ["tenant", "caretaker"]}, "approval_status": {"$exists": False}},
         {"$set": {"approval_status": "approved"}},
@@ -96,6 +105,10 @@ async def _seed_admin():
 
 
 app = FastAPI(title="Nairobi Rental Management", lifespan=lifespan)
+# Mount under /api/uploads so the K8s ingress (which only routes /api/* to backend)
+# correctly serves uploaded property images via the public REACT_APP_BACKEND_URL.
+# Kept the legacy /uploads mount for any internal/dev usage.
+app.mount("/api/uploads", StaticFiles(directory="uploads"), name="api_uploads")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 api_router = APIRouter(prefix="/api")

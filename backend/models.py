@@ -22,6 +22,14 @@ IssuePriority = Literal["low", "medium", "high", "urgent"]
 ViewingStatus = Literal["pending_payment", "scheduled", "completed", "cancelled"]
 PayoutStatus = Literal["pending", "paid"]
 ApprovalStatus = Literal["pending", "approved", "rejected"]
+PropertyCategory = Literal[
+    "apartment", "bedsitter", "single_room", "self_contained",
+    "standalone", "compound", "airbnb",
+]
+PROPERTY_CATEGORIES = (
+    "apartment", "bedsitter", "single_room", "self_contained",
+    "standalone", "compound", "airbnb",
+)
 VIEWING_FEE_KES = 200
 DEFAULT_COMMISSION_RATE = 0.035  # 3.5%
 
@@ -63,6 +71,15 @@ class PropertyCreate(BaseModel):
     name: str
     address: str
     description: Optional[str] = ""
+    category: Optional[PropertyCategory] = "apartment"
+
+
+class PropertyUpdate(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[PropertyCategory] = None
+    featured: Optional[bool] = None
 
 
 class Property(BaseModel):
@@ -71,6 +88,8 @@ class Property(BaseModel):
     name: str
     address: str
     description: Optional[str] = ""
+    category: PropertyCategory = "apartment"
+    featured: bool = False
     images: List[str] = []
     units_count: int = 0
     approval_status: ApprovalStatus = "pending"

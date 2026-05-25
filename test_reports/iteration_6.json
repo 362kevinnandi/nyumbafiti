@@ -1,0 +1,43 @@
+{
+  "summary": "Phase 1 Property Foundations - backend (19/19 pytest passing) and frontend (marketplace, admin/properties, landlord /properties) all verified. Found and fixed one CRITICAL infra bug: uploaded property images were not reachable through the public REACT_APP_BACKEND_URL because the K8s ingress only routes /api/* to backend, but StaticFiles were mounted on /uploads. Fixed by additionally mounting StaticFiles on /api/uploads and updating mediaUrl() to rewrite uploads/* -> api/uploads/*. After fix, all property card images, Marketplace Swiper images, admin All Properties images, and the landlord Properties page images render correctly from /api/uploads.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PATCH /api/properties/{id}", "issue": "Invalid category sent by admin returns 422 (Pydantic Literal) instead of the handler's manual 400 path. The 400 branch in update_property is dead code because PropertyUpdate.category is typed as PropertyCategory Literal. Cosmetic only - both are clear validation errors."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase1_properties.py",
+    "/app/test_reports/pytest/phase1_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: change PropertyUpdate.category type from PropertyCategory (Literal) to str so the manual 400 in update_property is reachable for consistent error responses with POST. Current 422 is acceptable.",
+    "Consider migrating any external/legacy image references (none observed) to the new /api/uploads/* path."
+  ],
+  "critical_code_review_comments": [
+    "CRITICAL infra fix applied: server.py now mounts StaticFiles at BOTH /uploads (legacy/dev) and /api/uploads (production). The K8s ingress routes only /api/* to backend port 8001, so the public REACT_APP_BACKEND_URL/uploads/... URL was hitting the React SPA and returning text/html for image requests. Without this fix every uploaded image would appear broken in production-like preview environments.",
+    "mediaUrl() in frontend/src/lib/api.js now rewrites paths starting with 'uploads/' to '/api/uploads/...'. Already-absolute URLs and other paths pass through unchanged - backward-compatible.",
+    "PropertyUpdate model uses Literal PropertyCategory which forces 422 on invalid categories before the handler runs, making the handler's 400 branch unreachable. Minor inconsistency vs the POST endpoint (which uses Form(str) then validates manually). Could relax to str if a 400 response is desired.",
+    "create_property uses synchronous shutil.copyfileobj + open() inside an async handler. Files are tiny (images), but for large multipart uploads this would block the event loop. Consider running file I/O via asyncio.to_thread or use aiofiles.",
+    "Featured-first sort in /public/listings is implemented as listings.sort(key=lambda x: (not x['featured'], x['rent_amount'])) - correct and stable. Verified by test_featured_sorts_first.",
+    "No size/MIME validation on uploaded property images. Recommend capping ~5MB per image and rejecting non-image content-types for security.",
+    "Image filenames are stored as `{uuid}_{original}` which preserves user-supplied filename in path - low risk because uuid prefix avoids collisions, but consider sanitising for safety."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (mounted StaticFiles at /api/uploads in addition to /uploads)",
+    "/app/frontend/src/lib/api.js (mediaUrl rewrites uploads/* to api/uploads/*)",
+    "/app/backend/tests/test_phase1_properties.py (new comprehensive test file - 19 tests)"
+  ],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "100% on critical Phase 1 flows"},
+  "test_credentials": "admin@nyumbaos.co.ke / admin123, land@demo.com / demo123",
+  "seed_data_creation": "Each test run creates TEST_-prefixed properties with image uploads. Cleanup via test_zz_cleanup. Admin-features one property mid-suite to validate sort order.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 1 backend tests live at /app/backend/tests/test_phase1_properties.py - 19 tests covering POST multipart with category+images, invalid category 400, default-apartment, image URL accessibility via /api/uploads, PATCH (landlord own / admin featured / non-owner 404 / invalid category 422), public listings category filter + featured sort, listing detail returns property.category+featured+images, admin /properties list, landlord forbidden, delete cascades units, admin can delete any. To run: cd /app && REACT_APP_BACKEND_URL=<url> pytest /app/backend/tests/test_phase1_properties.py -v. Frontend verified manually: /marketplace shows 8 chips (All/Apartment/Bedsitter/Single Room/Self-Contained/Standalone/Compound/Airbnb), Swiper renders, FEATURED gold badge on admin-featured card sorted first; /admin/properties lists all with Feature/Unfeature/Edit/Delete + search; landlord /properties has Add Property dialog with category dropdown including all 7 categories, edit icons present.",
+  "rca of the issue": "Root cause of broken image URLs: FastAPI's StaticFiles were mounted at app.mount('/uploads', ...) at the application root, not within the /api router. The Kubernetes ingress in this preview environment only routes paths matching /api/* to backend port 8001 - all other paths (including /uploads/*) go to the React frontend at port 3000, which serves index.html for unknown routes (200 OK, text/html). Locally on the container this looked fine when hitting localhost:8001/uploads/X.jpg directly, but via the public REACT_APP_BACKEND_URL the response was the React SPA's index.html, causing broken <img> tags. Mitigation: added a second mount app.mount('/api/uploads', StaticFiles(directory='uploads')) and taught mediaUrl() in frontend/src/lib/api.js to prefix 'uploads/' paths with '/api/'. Verified by curl: /api/uploads/properties/<file>.jpg now returns 200 image/jpeg through the public ingress."
+}

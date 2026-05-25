@@ -34,6 +34,7 @@ const NAV_BY_ROLE = {
   admin: [
     { to: "/admin", label: "Platform Overview", icon: ShieldCheck },
     { to: "/admin/approvals", label: "Approvals", icon: ClipboardCheck },
+    { to: "/admin/properties", label: "Properties", icon: Home },
     { to: "/admin/users", label: "Users", icon: Users },
     { to: "/admin/bills", label: "All Bills", icon: FileText },
     { to: "/admin/issues", label: "All Issues", icon: MessageSquare },

@@ -9,8 +9,16 @@ from fastapi import (
 )
 from auth import get_current_user, require_role
 from db import get_db
-from models import Property, PropertyCreate, Unit, UnitCreate, new_id, now_iso
-from typing import List
+from models import (
+    PROPERTY_CATEGORIES,
+    Property,
+    PropertyUpdate,
+    Unit,
+    UnitCreate,
+    new_id,
+    now_iso,
+)
+from typing import List, Optional
 import os
 import shutil
 
@@ -24,10 +32,11 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 @router.get("/properties")
 async def list_properties(user: dict = Depends(get_current_user)):
     db = get_db()
-    if user["role"] == "landlord":
+    if user["role"] == "admin":
+        cursor = db["properties"].find({}, {"_id": 0})
+    elif user["role"] == "landlord":
         cursor = db["properties"].find({"landlord_id": user["id"]}, {"_id": 0})
     elif user["role"] == "tenant":
-        # tenant sees only their landlord's property
         if not user.get("landlord_id"):
             return []
         cursor = db["properties"].find({"landlord_id": user["landlord_id"]}, {"_id": 0})
@@ -36,7 +45,6 @@ async def list_properties(user: dict = Depends(get_current_user)):
             return []
         cursor = db["properties"].find({"landlord_id": user["landlord_id"]}, {"_id": 0})
     props = await cursor.to_list(500)
-    # add unit counts
     for p in props:
         p["units_count"] = await db["units"].count_documents({"property_id": p["id"]})
     return props
@@ -47,22 +55,23 @@ async def create_property(
     name: str = Form(...),
     address: str = Form(...),
     description: str = Form(""),
+    category: str = Form("apartment"),
     images: List[UploadFile] = File([]),
     user: dict = Depends(require_role("landlord")),
 ):
     db = get_db()
 
+    if category not in PROPERTY_CATEGORIES:
+        raise HTTPException(400, f"Invalid category. Must be one of: {', '.join(PROPERTY_CATEGORIES)}")
+
     image_paths = []
-
-    # limit to 5 images
     for image in images[:5]:
-
+        if not image.filename:
+            continue
         filename = f"{new_id()}_{image.filename}"
         file_path = f"{UPLOAD_DIR}/{filename}"
-
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(image.file, buffer)
-
         image_paths.append(file_path)
 
     doc = {
@@ -71,6 +80,8 @@ async def create_property(
         "name": name,
         "address": address,
         "description": description,
+        "category": category,
+        "featured": False,
         "images": image_paths,
         "units_count": 0,
         "approval_status": "pending",
@@ -78,15 +89,60 @@ async def create_property(
     }
 
     await db["properties"].insert_one(doc)
-
     doc.pop("_id", None)
-
     return Property(**doc)
 
-@router.delete("/properties/{prop_id}")
-async def delete_property(prop_id: str, user: dict = Depends(require_role("landlord"))):
+
+@router.patch("/properties/{prop_id}", response_model=Property)
+async def update_property(
+    prop_id: str,
+    payload: PropertyUpdate,
+    user: dict = Depends(get_current_user),
+):
+    """Edit a property. Landlord can edit own; admin can edit any + toggle 'featured'."""
     db = get_db()
-    res = await db["properties"].delete_one({"id": prop_id, "landlord_id": user["id"]})
+    query: dict = {"id": prop_id}
+    if user["role"] == "landlord":
+        query["landlord_id"] = user["id"]
+    elif user["role"] != "admin":
+        raise HTTPException(403, "Forbidden")
+
+    prop = await db["properties"].find_one(query)
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    updates = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None}
+    # Only admin can change 'featured'
+    if "featured" in updates and user["role"] != "admin":
+        updates.pop("featured")
+
+    if "category" in updates and updates["category"] not in PROPERTY_CATEGORIES:
+        raise HTTPException(400, "Invalid category")
+
+    if updates:
+        updates["updated_at"] = now_iso()
+        await db["properties"].update_one({"id": prop_id}, {"$set": updates})
+
+    fresh = await db["properties"].find_one({"id": prop_id}, {"_id": 0})
+    fresh["units_count"] = await db["units"].count_documents({"property_id": prop_id})
+    # Backfill new fields for old docs
+    fresh.setdefault("category", "apartment")
+    fresh.setdefault("featured", False)
+    return Property(**fresh)
+
+
+@router.delete("/properties/{prop_id}")
+async def delete_property(prop_id: str, user: dict = Depends(get_current_user)):
+    """Landlord deletes their own property; admin can delete any."""
+    db = get_db()
+    if user["role"] == "admin":
+        res = await db["properties"].delete_one({"id": prop_id})
+    elif user["role"] == "landlord":
+        res = await db["properties"].delete_one(
+            {"id": prop_id, "landlord_id": user["id"]}
+        )
+    else:
+        raise HTTPException(403, "Forbidden")
     if res.deleted_count == 0:
         raise HTTPException(404, "Property not found")
     await db["units"].delete_many({"property_id": prop_id})
@@ -95,7 +151,7 @@ async def delete_property(prop_id: str, user: dict = Depends(require_role("landl
 
 @router.get("/units")
 async def list_units(
-    property_id: str | None = None, user: dict = Depends(get_current_user)
+    property_id: Optional[str] = None, user: dict = Depends(get_current_user)
 ):
     db = get_db()
     query: dict = {}
@@ -106,12 +162,13 @@ async def list_units(
             query["id"] = user["unit_id"]
         else:
             return []
+    elif user["role"] == "admin":
+        pass
     else:
         query["landlord_id"] = user.get("landlord_id")
     if property_id:
         query["property_id"] = property_id
     units = await db["units"].find(query, {"_id": 0}).to_list(1000)
-    # attach tenant name
     tenant_ids = [u["tenant_id"] for u in units if u.get("tenant_id")]
     if tenant_ids:
         tenants = await db["users"].find(

@@ -1,21 +1,48 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, formatKES } from "@/lib/api";
+import { api, formatKES, mediaUrl } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Building2, MapPin, BedDouble, Search, ArrowRight, LogIn } from "lucide-react";
+import { Building2, MapPin, BedDouble, Search, ArrowRight, LogIn, Sparkles } from "lucide-react";
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Navigation, Pagination, Autoplay } from "swiper/modules";
+import "swiper/css";
+import "swiper/css/navigation";
+import "swiper/css/pagination";
+import "./swiper-overrides.css";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1630241466166-22e43156d8c0?crop=entropy&cs=srgb&fm=jpg&q=85&w=800";
 
+const CATEGORY_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "apartment", label: "Apartment" },
+  { value: "bedsitter", label: "Bedsitter" },
+  { value: "single_room", label: "Single Room" },
+  { value: "self_contained", label: "Self-Contained" },
+  { value: "standalone", label: "Standalone" },
+  { value: "compound", label: "Compound" },
+  { value: "airbnb", label: "Airbnb" },
+];
+
+const categoryLabel = (v) =>
+  CATEGORY_FILTERS.find((c) => c.value === v)?.label || "Apartment";
+
+// 8 cards per slide (4 columns × 2 rows on desktop)
+const CARDS_PER_SLIDE = 8;
+
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 export default function MarketplacePage() {
   const [listings, setListings] = useState([]);
-  const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [maxRent, setMaxRent] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const listingsPerPage = 9;
+  const [category, setCategory] = useState("all");
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -23,38 +50,29 @@ export default function MarketplacePage() {
     setLoading(true);
     const params = {};
     if (maxRent) params.max_rent = maxRent;
+    if (category && category !== "all") params.category = category;
     const r = await api.get("/public/listings", { params });
     setListings(r.data);
     setLoading(false);
-  }, [maxRent]);
+  }, [maxRent, category]);
 
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
+  const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) { setFiltered(listings); return; }
-    setCurrentPage(1);
-    setFiltered(
-      listings.filter(
-        (l) =>
-          l.property.name.toLowerCase().includes(q) ||
-          l.property.address.toLowerCase().includes(q) ||
-          l.unit_number.toLowerCase().includes(q)
-      )
+    if (!q) return listings;
+    return listings.filter(
+      (l) =>
+        l.property.name.toLowerCase().includes(q) ||
+        l.property.address.toLowerCase().includes(q) ||
+        l.unit_number.toLowerCase().includes(q)
     );
   }, [search, listings]);
-  const totalPages = Math.ceil(filtered.length / listingsPerPage);
 
-const startIndex = (currentPage - 1) * listingsPerPage;
-
-const paginatedListings = filtered.slice(
-  startIndex,
-  startIndex + listingsPerPage
-);
+  const slides = useMemo(() => chunk(filtered, CARDS_PER_SLIDE), [filtered]);
 
   return (
     <div className="min-h-screen bg-[#FAFAFA]" data-testid="marketplace-page">
-      {/* Public top nav */}
       <header className="bg-white border-b border-zinc-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <Link to="/marketplace" className="flex items-center gap-2" data-testid="marketplace-logo">
@@ -90,7 +108,7 @@ const paginatedListings = filtered.slice(
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 md:py-16">
           <div className="overline text-zinc-500 mb-3">Verified Nairobi Listings</div>
           <h1 className="font-display font-black text-4xl sm:text-5xl md:text-6xl tracking-tight leading-none max-w-3xl">
-            Find your next home.<br/>
+            Find your next home.<br />
             <span className="text-zinc-400">Book a viewing in seconds.</span>
           </h1>
           <p className="text-zinc-600 mt-5 max-w-xl text-base leading-relaxed">
@@ -121,130 +139,84 @@ const paginatedListings = filtered.slice(
               Search
             </Button>
           </div>
+
+          {/* Category chips */}
+          <div className="mt-6 flex flex-wrap gap-2" data-testid="category-chips">
+            {CATEGORY_FILTERS.map((c) => {
+              const active = category === c.value;
+              return (
+                <button
+                  key={c.value}
+                  onClick={() => setCategory(c.value)}
+                  className={`px-4 h-9 rounded-full border text-xs font-semibold transition-all ${
+                    active
+                      ? "bg-zinc-950 text-white border-zinc-950 shadow-sm"
+                      : "bg-white text-zinc-700 border-zinc-300 hover:border-zinc-500"
+                  }`}
+                  data-testid={`category-chip-${c.value}`}
+                >
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
 
-      {/* Listings */}
+      {/* Listings carousel */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
         <div className="flex items-end justify-between mb-6 flex-wrap gap-2">
           <div>
-
-  <div className="uppercase tracking-[0.22em] text-[11px] text-zinc-500 border-t border-zinc-300 pt-2 w-fit">
-    Available Now
-  </div>
-
-  <h2 className="font-display font-black text-4xl tracking-tight mt-3">
-    {loading
-      ? "Loading listings..."
-      : `${filtered.length} Verified Vacant ${
-          filtered.length === 1 ? "Unit" : "Units"
-        }`}
-  </h2>
-
-  <div className="text-sm text-zinc-500 mt-2">
-    Showing {startIndex + 1}–
-    {Math.min(startIndex + listingsPerPage, filtered.length)} of{" "}
-    {filtered.length} listings
-  </div>
-
-</div>
+            <div className="uppercase tracking-[0.22em] text-[11px] text-zinc-500 border-t border-zinc-300 pt-2 w-fit">
+              Available Now
+            </div>
+            <h2 className="font-display font-black text-4xl tracking-tight mt-3">
+              {loading
+                ? "Loading listings..."
+                : `${filtered.length} Verified Vacant ${filtered.length === 1 ? "Unit" : "Units"}`}
+            </h2>
+            <div className="text-sm text-zinc-500 mt-2">
+              {slides.length > 1
+                ? `Swipe through ${slides.length} pages of listings`
+                : "Click any unit to book a viewing"}
+            </div>
+          </div>
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-7">
-            {[1,2,3].map(i => <div key={i} className="bg-white border border-zinc-200 rounded-md h-72 animate-pulse" />)}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-7">
+            {[1, 2, 3, 4].map((i) => <div key={i} className="bg-white border border-zinc-200 rounded-md h-72 animate-pulse" />)}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 border border-dashed border-zinc-200 rounded-md bg-white">
+          <div className="text-center py-16 border border-dashed border-zinc-200 rounded-md bg-white" data-testid="marketplace-empty">
             <Building2 className="w-11 h-11 shadow-sm mx-auto text-zinc-300 mb-3" />
             <div className="font-display font-bold text-lg mb-1">No listings match</div>
-            <div className="text-sm text-zinc-500">Try adjusting your search or check back soon.</div>
+            <div className="text-sm text-zinc-500">Try adjusting your filters or check back soon.</div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7" data-testid="listings-grid">
-            {paginatedListings.map((l) => (
-              <Link key={l.id} to={`/marketplace/${l.id}`} className="bg-white border border-zinc-200 rounded-2xl overflow-hidden block group transition-all duration-300 shadow-sm hover:-translate-y-1 hover:shadow-2xl hover:border-zinc-300" data-testid={`listing-card-${l.id}`}>
-                <div
-                  className="relative h-56 bg-zinc-100 overflow-hidden group-hover:scale-[1.02] transition-transform duration-500"
-                  style={{ 
-  backgroundImage: `url(${
-    l.property.images?.[0]
-      ? `http://localhost:8001/${l.property.images[0].replace(/^\/+/, "")}`
-      : FALLBACK_IMG
-  })`,
-  backgroundSize: "cover",
-  transition: "transform 0.5s ease",
-  backgroundPosition: "center"
-}}
-                >
-                  <div className="absolute top-3 left-3 bg-white/95 backdrop-blur px-2 py-0.5 rounded-sm text-xs font-mono-num font-semibold">
-                    {formatKES(l.rent_amount)}/mo
+          <div className="marketplace-carousel" data-testid="listings-carousel">
+            <Swiper
+              modules={[Navigation, Pagination, Autoplay]}
+              navigation
+              pagination={{ clickable: true }}
+              autoplay={{ delay: 5000, disableOnInteraction: false, pauseOnMouseEnter: true }}
+              loop={slides.length > 1}
+              spaceBetween={24}
+              slidesPerView={1}
+              className="rounded-md"
+            >
+              {slides.map((group, slideIdx) => (
+                <SwiperSlide key={slideIdx}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 px-1 pb-12" data-testid={`listings-slide-${slideIdx}`}>
+                    {group.map((l) => (
+                      <ListingCard key={l.id} l={l} />
+                    ))}
                   </div>
-                  <div className="absolute top-3 right-3 bg-zinc-950/90 text-white px-2 py-0.5 rounded-sm overline text-[10px]">
-                    Verified
-                  </div>
-                </div>
-                <div className="p-5">
-                  <div className="font-display font-bold text-lg leading-tight mb-1 group-hover:text-zinc-700">{l.property.name}</div>
-                  <div className="flex items-start gap-1.5 text-xs text-zinc-500 mb-3">
-                    <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
-                    <span className="line-clamp-1">{l.property.address}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-zinc-700 mb-3">
-                    <span className="flex items-center gap-1"><BedDouble className="w-3.5 h-3.5" /> {l.bedrooms} bed</span>
-                    <span className="text-zinc-300">·</span>
-                    <span className="font-mono-num">Unit {l.unit_number}</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-3 border-t border-zinc-100">
-                    <div className="uppercase tracking-[0.18em] text-zinc-500 text-[11px]">By {l.landlord_name}</div>
-                    <div className="text-xs font-semibold text-zinc-950 flex items-center gap-1 group-hover:gap-2 transition-all">
-                      View <ArrowRight className="w-3 h-3" />
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                </SwiperSlide>
+              ))}
+            </Swiper>
           </div>
         )}
-        {totalPages > 1 && (
-  <div className="flex items-center justify-center gap-3 mt-14 mb-10">
-
-    <Button
-      variant="outline"
-      disabled={currentPage === 1}
-      onClick={() => setCurrentPage((p) => p - 1)}
-      className="rounded-md"
-    >
-      Previous
-    </Button>
-
-    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-
-      <button
-        key={page}
-        onClick={() => setCurrentPage(page)}
-        className={`w-10 h-10 rounded-md text-sm font-semibold transition-all ${
-          currentPage === page
-            ? "bg-zinc-950 text-white shadow-md"
-            : "bg-white border border-zinc-200 hover:border-zinc-400"
-        }`}
-      >
-        {page}
-      </button>
-
-    ))}
-
-    <Button
-      variant="outline"
-      disabled={currentPage === totalPages}
-      onClick={() => setCurrentPage((p) => p + 1)}
-      className="rounded-md"
-    >
-      Next
-    </Button>
-
-  </div>
-)}
       </section>
 
       <footer className="border-t border-zinc-200 mt-12">
@@ -257,5 +229,60 @@ const paginatedListings = filtered.slice(
         </div>
       </footer>
     </div>
+  );
+}
+
+function ListingCard({ l }) {
+  const imgSrc = l.property.images?.[0] ? mediaUrl(l.property.images[0]) : FALLBACK_IMG;
+  return (
+    <Link
+      to={`/marketplace/${l.id}`}
+      className="bg-white border border-zinc-200 rounded-2xl overflow-hidden block group transition-all duration-300 shadow-sm hover:-translate-y-1 hover:shadow-2xl hover:border-zinc-300"
+      data-testid={`listing-card-${l.id}`}
+    >
+      <div
+        className="relative h-44 bg-zinc-100 overflow-hidden group-hover:scale-[1.02] transition-transform duration-500"
+        style={{
+          backgroundImage: `url(${imgSrc})`,
+          backgroundSize: "cover",
+          transition: "transform 0.5s ease",
+          backgroundPosition: "center",
+        }}
+      >
+        <div className="absolute top-3 left-3 bg-white/95 backdrop-blur px-2 py-0.5 rounded-sm text-xs font-mono-num font-semibold">
+          {formatKES(l.rent_amount)}/mo
+        </div>
+        {l.featured ? (
+          <div className="absolute top-3 right-3 bg-amber-400 text-zinc-950 border border-amber-500 px-2 py-0.5 rounded-sm overline text-[10px] shadow flex items-center gap-1" data-testid={`featured-badge-${l.id}`}>
+            <Sparkles className="w-3 h-3" /> Featured
+          </div>
+        ) : (
+          <div className="absolute top-3 right-3 bg-zinc-950/90 text-white px-2 py-0.5 rounded-sm overline text-[10px]">
+            Verified
+          </div>
+        )}
+        <div className="absolute bottom-3 left-3 bg-zinc-950/85 text-white px-2 py-0.5 rounded-sm overline text-[10px] backdrop-blur">
+          {categoryLabel(l.category)}
+        </div>
+      </div>
+      <div className="p-4">
+        <div className="font-display font-bold text-base leading-tight mb-1 group-hover:text-zinc-700 line-clamp-1">{l.property.name}</div>
+        <div className="flex items-start gap-1.5 text-xs text-zinc-500 mb-3">
+          <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
+          <span className="line-clamp-1">{l.property.address}</span>
+        </div>
+        <div className="flex items-center gap-3 text-sm text-zinc-700 mb-3">
+          <span className="flex items-center gap-1"><BedDouble className="w-3.5 h-3.5" /> {l.bedrooms} bed</span>
+          <span className="text-zinc-300">·</span>
+          <span className="font-mono-num">Unit {l.unit_number}</span>
+        </div>
+        <div className="flex items-center justify-between pt-3 border-t border-zinc-100">
+          <div className="uppercase tracking-[0.18em] text-zinc-500 text-[10px] truncate max-w-[60%]">By {l.landlord_name}</div>
+          <div className="text-xs font-semibold text-zinc-950 flex items-center gap-1 group-hover:gap-2 transition-all">
+            View <ArrowRight className="w-3 h-3" />
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 }

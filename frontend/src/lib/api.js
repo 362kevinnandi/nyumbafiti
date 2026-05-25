@@ -3,6 +3,22 @@ import axios from "axios";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API_BASE = `${BACKEND_URL}/api`;
 
+/**
+ * Build an absolute media URL for property images stored on the backend.
+ * Accepts paths like "uploads/properties/xyz.jpg" or already-absolute URLs.
+ */
+export const mediaUrl = (path) => {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  // The K8s ingress only routes /api/* to the backend, so any "uploads/..."
+  // path stored on backend must be served via /api/uploads/...
+  const clean = path.replace(/^\/+/, "");
+  if (clean.startsWith("uploads/")) {
+    return `${BACKEND_URL}/api/${clean}`;
+  }
+  return `${BACKEND_URL}/${clean}`;
+};
+
 export const api = axios.create({
   baseURL: API_BASE,
   timeout: 30000,
