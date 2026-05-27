@@ -14,7 +14,7 @@ from models import (
     YARD_SALE_CONTACT_UNLOCK_KES, YARD_SALE_BROADCAST_FEE_KES,
     YardSaleUpdate, new_id, now_iso,
 )
-from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, should_use_demo_fallback, stk_push
+from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, schedule_status_poll, should_use_demo_fallback, stk_push
 
 router = APIRouter(tags=["yard-sale"])
 
@@ -292,6 +292,10 @@ async def feature_listing(
         asyncio.create_task(
             schedule_demo_callback(resp["CheckoutRequestID"], _process_callback_payload)
         )
+    elif resp.get("CheckoutRequestID"):
+        asyncio.create_task(
+            schedule_status_poll(resp["CheckoutRequestID"], _process_callback_payload)
+        )
 
     return {
         "payment_id": payment_id,
@@ -377,6 +381,10 @@ async def _initiate_yardsale_payment(
     if should_use_demo_fallback(resp):
         asyncio.create_task(
             schedule_demo_callback(resp["CheckoutRequestID"], _process_callback_payload)
+        )
+    elif resp.get("CheckoutRequestID"):
+        asyncio.create_task(
+            schedule_status_poll(resp["CheckoutRequestID"], _process_callback_payload)
         )
 
     return {

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from auth import get_current_user, require_role
 from db import get_db
-from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, should_use_demo_fallback, stk_push
+from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, schedule_status_poll, should_use_demo_fallback, stk_push
 from models import PaymentInitiate, new_id, now_iso
 
 router = APIRouter(tags=["payments"])
@@ -71,6 +71,20 @@ async def _process_callback_payload(payload: dict):
     await db["payments"].update_one({"id": payment["id"]}, {"$set": update})
 
     if result_code != 0:
+        # Notify tenant so they know to retry — was a silent failure before
+        if payment.get("tenant_id"):
+            try:
+                from notifications import notify_user
+                reason = result_desc or "Payment was not completed"
+                await notify_user(
+                    payment["tenant_id"],
+                    "payment_succeeded",  # reused channel
+                    f"Payment did not go through — {reason}",
+                    "Your M-Pesa payment was not completed (you may have cancelled, timed out, or had insufficient balance). Open the bill and try again.",
+                    link="/bills" if payment.get("bill_id") else "/marketplace",
+                )
+            except Exception:
+                pass
         return
 
     # SUCCESS: route based on purpose
@@ -345,6 +359,8 @@ async def initiate_payment(
 
     if should_use_demo_fallback(resp):
         asyncio.create_task(schedule_demo_callback(resp["CheckoutRequestID"], _process_callback_payload))
+    elif resp.get("CheckoutRequestID"):
+        asyncio.create_task(schedule_status_poll(resp["CheckoutRequestID"], _process_callback_payload))
 
     # Pull landlord paybill info for the UI
     prop = await db["properties"].find_one({"id": bill["property_id"]}, {"_id": 0}) or {}
@@ -494,6 +510,60 @@ async def mpesa_callback(secret: str, request: Request):
     payload = await request.json()
     await _process_callback_payload(payload)
     return {"ResultCode": 0, "ResultDesc": "Accepted"}
+
+
+@router.post("/payments/{payment_id}/check")
+async def force_status_check(payment_id: str, user: dict = Depends(get_current_user)):
+    """Manually trigger a Safaricom STK query for this payment + settle accordingly.
+
+    Useful when the automatic poller hasn't yet detected the user's action (paid / cancelled),
+    or when the tenant wants to refresh the status immediately.
+    """
+    db = get_db()
+    p = await db["payments"].find_one({"id": payment_id})
+    if not p:
+        raise HTTPException(404, "Payment not found")
+    # Auth: tenant who initiated, landlord on the bill, or admin
+    if user["role"] != "admin" and p.get("tenant_id") != user["id"] and p.get("landlord_id") != user["id"]:
+        raise HTTPException(403, "Forbidden")
+    if p["status"] in ("succeeded", "failed", "refunded"):
+        return p
+    if not p.get("checkout_request_id"):
+        raise HTTPException(400, "No checkout_request_id on this payment")
+    if is_demo_mode():
+        # In pure demo mode we cannot query Safaricom
+        return p
+    from mpesa import _synth_callback, query_stk_status
+    try:
+        data = await query_stk_status(p["checkout_request_id"])
+    except Exception as exc:
+        raise HTTPException(502, f"Safaricom query failed: {exc}")
+    code = str(data.get("ResultCode", ""))
+    desc = data.get("ResultDesc", "") or data.get("errorMessage", "")
+    if code == "0":
+        await _process_callback_payload(_synth_callback(p["checkout_request_id"], 0, desc or "Success"))
+    elif code in ("1", "1032", "1037", "1019", "1025", "1031", "2001"):
+        await _process_callback_payload(_synth_callback(p["checkout_request_id"], int(code), desc))
+    # else still pending — leave as-is
+    return await db["payments"].find_one({"id": payment_id}, {"_id": 0})
+
+
+@router.post("/payments/{payment_id}/cancel")
+async def cancel_payment(payment_id: str, user: dict = Depends(get_current_user)):
+    """Tenant aborts a stuck-pending STK push so they can retry."""
+    db = get_db()
+    p = await db["payments"].find_one({"id": payment_id})
+    if not p:
+        raise HTTPException(404, "Payment not found")
+    if user["role"] != "admin" and p.get("tenant_id") != user["id"]:
+        raise HTTPException(403, "Forbidden")
+    if p["status"] != "pending":
+        raise HTTPException(400, "Payment is no longer pending")
+    await db["payments"].update_one(
+        {"id": payment_id},
+        {"$set": {"status": "failed", "result_desc": "Cancelled by user", "updated_at": now_iso()}},
+    )
+    return {"ok": True, "status": "failed"}
 
 
 @router.get("/payments")

@@ -236,41 +236,75 @@ function PayDialog({ bill, onPaid }) {
   const [submitting, setSubmitting] = useState(false);
   const [pollingPaymentId, setPollingPaymentId] = useState(null);
   const [status, setStatus] = useState(null);
-  const [stkInfo, setStkInfo] = useState(null); // {service_fee_amount, rent_amount, landlord_paybill, landlord_account_number, platform_paybill, platform_account, total_cost_to_tenant}
+  const [stkInfo, setStkInfo] = useState(null);
   const [feePaid, setFeePaid] = useState(bill.status === "awaiting_rent_receipt" || bill.status === "awaiting_landlord_confirmation");
+  const [feeFailed, setFeeFailed] = useState(false);
   const [rentReceipt, setRentReceipt] = useState("");
   const [rentAmount, setRentAmount] = useState(bill.amount - bill.amount_paid);
+  const [elapsed, setElapsed] = useState(0);
+
+  const isRent = bill.bill_type === "rent";
+  const billTypeLabel = bill.bill_type === "rent" ? "rent" : bill.bill_type === "water" ? "water bill" : bill.bill_type === "electricity" ? "electricity bill" : bill.bill_type === "service_charge" ? "service charge" : `${bill.bill_type} bill`;
+  const recipientLabel = "landlord";
 
   const startFeePayment = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     setStatus(null);
+    setFeeFailed(false);
+    setElapsed(0);
     try {
       const r = await api.post("/payments/mpesa/stk-push", { bill_id: bill.id, phone_number: phone });
       setStkInfo(r.data);
       setPollingPaymentId(r.data.payment_id);
       setStatus("Check your phone for the M-Pesa STK push prompt");
+      const start = Date.now();
+      const tick = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
       const interval = setInterval(async () => {
         try {
           const pr = await api.get(`/payments/${r.data.payment_id}`);
           if (pr.data.status === "succeeded") {
-            clearInterval(interval);
+            clearInterval(interval); clearInterval(tick);
             setStatus("Service fee paid! Receipt: " + pr.data.mpesa_receipt);
             setFeePaid(true);
-            toast.success("Service fee paid — now pay rent to landlord");
+            toast.success("Service fee paid — now pay " + billTypeLabel + " to " + recipientLabel);
           } else if (pr.data.status === "failed") {
-            clearInterval(interval);
-            setStatus("Payment failed: " + (pr.data.result_desc || "unknown error"));
-            toast.error("Payment failed");
+            clearInterval(interval); clearInterval(tick);
+            setFeeFailed(true);
+            setStatus("Payment did not go through: " + (pr.data.result_desc || "no response"));
+            toast.error("STK push failed — try again");
           }
-        } catch (e) { /* keep polling */ }
+        } catch { /* keep polling */ }
+        // After 25s, force a real Safaricom status query (truth, not assumption)
+        if (Date.now() - start > 25_000 && Date.now() - start < 28_000) {
+          try { await api.post(`/payments/${r.data.payment_id}/check`); } catch { /* ignore */ }
+        }
       }, 2500);
-      setTimeout(() => clearInterval(interval), 90000);
+      // Hard timeout at 100s
+      setTimeout(() => { clearInterval(interval); clearInterval(tick); }, 100_000);
     } catch (err) {
       toast.error(formatApiError(err, "Failed to initiate"));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const cancelPending = async () => {
+    if (!pollingPaymentId) return;
+    try {
+      await api.post(`/payments/${pollingPaymentId}/cancel`);
+      setFeeFailed(true);
+      setStatus("Payment cancelled — you can retry now");
+    } catch (err) {
+      toast.error(formatApiError(err, "Cancel failed"));
+    }
+  };
+
+  const restart = () => {
+    setPollingPaymentId(null);
+    setStatus(null);
+    setFeeFailed(false);
+    setElapsed(0);
   };
 
   const submitReceipt = async (e) => {
@@ -281,7 +315,7 @@ function PayDialog({ bill, onPaid }) {
         mpesa_receipt: rentReceipt.trim(),
         amount_paid: Number(rentAmount),
       });
-      toast.success("Receipt submitted — waiting for landlord to confirm");
+      toast.success("Receipt submitted — waiting for " + recipientLabel + " to confirm");
       setOpen(false);
       onPaid();
     } catch (err) {
@@ -292,7 +326,7 @@ function PayDialog({ bill, onPaid }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setPollingPaymentId(null); setStatus(null); setStkInfo(null); setRentReceipt(""); } }}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) restart(); }}>
       <DialogTrigger asChild>
         <Button className="bg-mpesa hover:bg-mpesa text-white rounded-md h-8 text-xs" data-testid={`pay-bill-${bill.id}`}>
           <Smartphone className="w-3.5 h-3.5 mr-1" /> Pay
@@ -300,7 +334,7 @@ function PayDialog({ bill, onPaid }) {
       </DialogTrigger>
       <DialogContent className="rounded-md max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-display font-black text-2xl">Pay {bill.bill_type}</DialogTitle>
+          <DialogTitle className="font-display font-black text-2xl">Pay {billTypeLabel}</DialogTitle>
           <DialogDescription>
             {bill.period} · Balance {formatKES(bill.amount - bill.amount_paid)}
           </DialogDescription>
@@ -313,7 +347,7 @@ function PayDialog({ bill, onPaid }) {
               <div className="font-semibold text-amber-900 mb-1">Two-step payment</div>
               <ol className="text-amber-900/90 leading-relaxed list-decimal list-inside space-y-0.5">
                 <li><strong>STK push now</strong> for the 2.5% service fee to NyumbaOS.</li>
-                <li><strong>Then pay rent</strong> directly to your landlord's M-Pesa Paybill.</li>
+                <li><strong>Then pay {billTypeLabel}</strong> directly to your {recipientLabel}'s M-Pesa Paybill.</li>
               </ol>
             </div>
             <div>
@@ -329,18 +363,35 @@ function PayDialog({ bill, onPaid }) {
           </form>
         )}
 
-        {/* In-flight STK waiting */}
-        {!feePaid && pollingPaymentId && (
+        {/* In-flight STK — only when truly pending. Show failure state if Safaricom rejected. */}
+        {!feePaid && pollingPaymentId && !feeFailed && (
           <div className="py-8 text-center space-y-3" data-testid="pay-fee-status">
             <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 flex items-center justify-center">
               <Smartphone className="w-6 h-6 text-mpesa animate-pulse" />
             </div>
             <div className="font-display font-bold">{status}</div>
+            <div className="text-xs text-zinc-500 font-mono-num">elapsed: {elapsed}s</div>
             {stkInfo && (
               <div className="text-xs text-zinc-500">
                 Fee: {formatKES(stkInfo.service_fee_amount)} → Platform paybill {stkInfo.platform_paybill} / {stkInfo.platform_account}
               </div>
             )}
+            <button type="button" onClick={cancelPending} className="text-xs text-zinc-500 hover:text-red-600 underline" data-testid="pay-cancel-button">
+              Cancel and retry
+            </button>
+          </div>
+        )}
+
+        {/* Failure state */}
+        {!feePaid && pollingPaymentId && feeFailed && (
+          <div className="py-6 text-center space-y-3" data-testid="pay-fee-failed">
+            <div className="w-12 h-12 mx-auto rounded-full bg-red-50 flex items-center justify-center">
+              <Smartphone className="w-6 h-6 text-red-600" />
+            </div>
+            <div className="font-display font-bold text-lg">Payment didn't go through</div>
+            <div className="text-sm text-red-700 max-w-sm mx-auto">{status}</div>
+            <div className="text-xs text-zinc-500">Common reasons: cancelled the prompt, didn't enter PIN in time, insufficient M-Pesa balance.</div>
+            <Button onClick={restart} className="bg-zinc-950 hover:bg-zinc-800" data-testid="pay-retry-button">Try again</Button>
           </div>
         )}
 
@@ -349,12 +400,12 @@ function PayDialog({ bill, onPaid }) {
           <form onSubmit={submitReceipt} className="space-y-4 mt-2" data-testid="pay-rent-form">
             <div className="bg-emerald-50 border-2 border-emerald-200 rounded-md p-4 text-sm">
               <div className="font-display font-bold mb-2 flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Fee paid · Now pay rent to landlord
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Fee paid · Now pay {billTypeLabel} to {recipientLabel}
               </div>
               <div className="text-xs space-y-1">
                 <div>1. Open M-Pesa → <strong>Lipa na M-Pesa</strong> → <strong>Pay Bill</strong></div>
-                <div>2. Business no.: <span className="font-mono-num font-bold">{stkInfo?.landlord_paybill || (bill.landlord_paybill ?? "ASK LANDLORD")}</span></div>
-                <div>3. Account no.: <span className="font-mono-num font-bold">{stkInfo?.landlord_account_number || (bill.landlord_account_number ?? "ASK LANDLORD")}</span></div>
+                <div>2. Business no.: <span className="font-mono-num font-bold">{stkInfo?.landlord_paybill || bill.landlord_paybill || "ASK LANDLORD"}</span></div>
+                <div>3. Account no.: <span className="font-mono-num font-bold">{stkInfo?.landlord_account_number || bill.landlord_account_number || "ASK LANDLORD"}</span></div>
                 <div>4. Amount: <span className="font-mono-num font-bold">{formatKES(stkInfo?.rent_amount || (bill.amount - bill.amount_paid))}</span></div>
                 <div>5. Enter PIN → save the receipt code you get via SMS</div>
               </div>
@@ -369,7 +420,7 @@ function PayDialog({ bill, onPaid }) {
             </div>
             <DialogFooter>
               <Button type="submit" disabled={submitting} className="bg-zinc-950 hover:bg-zinc-800 w-full" data-testid="pay-receipt-submit">
-                {submitting ? "Submitting..." : "Submit receipt for landlord confirmation"}
+                {submitting ? "Submitting..." : `Submit receipt for ${recipientLabel} confirmation`}
               </Button>
             </DialogFooter>
           </form>

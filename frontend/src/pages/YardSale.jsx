@@ -53,7 +53,12 @@ export default function YardSalePage() {
   // Poll the seller's pending listing once submitted, so we know when STK confirms
   useEffect(() => {
     if (!pendingPayment) return;
+    const start = Date.now();
     const interval = setInterval(async () => {
+      // After 25s, force a real Safaricom status query for truth (no more false-positive demo callbacks)
+      if (Date.now() - start > 25_000 && Date.now() - start < 28_000 && pendingPayment?.payment_id) {
+        try { await api.post(`/payments/${pendingPayment.payment_id}/check`); } catch { /* ignore */ }
+      }
       try {
         const r = await api.get(`/yard-sale/listings/${pendingPayment.listing_id}`);
         if (r.data?.status === "active" && r.data?.contact_unlocked) {
@@ -66,8 +71,19 @@ export default function YardSalePage() {
           load();
         }
       } catch { /* listing not visible yet */ }
+      // If payment row tells us it failed, surface that
+      if (pendingPayment?.payment_id) {
+        try {
+          const pr = await api.get(`/payments/${pendingPayment.payment_id}`);
+          if (pr.data?.status === "failed") {
+            clearInterval(interval);
+            toast.error("Payment did not go through — " + (pr.data.result_desc || "no response"));
+            setPendingPayment(null);
+          }
+        } catch { /* */ }
+      }
     }, 2500);
-    const stop = setTimeout(() => clearInterval(interval), 90000);
+    const stop = setTimeout(() => clearInterval(interval), 120000);
     return () => { clearInterval(interval); clearTimeout(stop); };
   }, [pendingPayment, load, user?.phone]);
 
@@ -137,7 +153,18 @@ export default function YardSalePage() {
                     <div className="font-display font-bold text-lg mb-1">Awaiting M-Pesa confirmation</div>
                     <div className="text-sm text-zinc-700">Enter your PIN on the prompt that was just sent to your phone. We'll publish the listing as soon as Safaricom confirms.</div>
                   </div>
-                  <Button type="button" variant="outline" onClick={() => { setPendingPayment(null); setOpen(false); }} className="w-full" data-testid="yard-sale-pending-close">Close</Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={async () => {
+                      try { if (pendingPayment.payment_id) await api.post(`/payments/${pendingPayment.payment_id}/cancel`); } catch { /* */ }
+                      setPendingPayment(null); setOpen(false);
+                    }}
+                    className="w-full"
+                    data-testid="yard-sale-pending-close"
+                  >
+                    Cancel & close
+                  </Button>
                 </div>
               ) : (
               <form onSubmit={create} className="space-y-4" data-testid="yard-sale-form">

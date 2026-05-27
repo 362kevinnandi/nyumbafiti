@@ -219,8 +219,13 @@ function BookViewingDialog({ listing, open, setOpen }) {
         setCredentials({ email: r.data.prospect_email, password: r.data.prospect_password });
       }
       toast.success("STK push sent! Check your phone.");
+      const start = Date.now();
       // poll
       const interval = setInterval(async () => {
+        // After 25s, force a real Safaricom status query (truth, not assumption)
+        if (Date.now() - start > 25_000 && Date.now() - start < 28_000 && r.data.payment_id) {
+          try { await api.post(`/payments/${r.data.payment_id}/check`); } catch { /* ignore */ }
+        }
         try {
           const sr = await api.get(`/public/viewings/${r.data.viewing_id}`);
           setStatusInfo(sr.data);
@@ -229,7 +234,7 @@ function BookViewingDialog({ listing, open, setOpen }) {
             toast.success("Booking confirmed!");
           } else if (sr.data.payment_status === "failed") {
             clearInterval(interval);
-            toast.error("Payment failed");
+            toast.error("Payment did not go through — " + (sr.data.payment_result_desc || "no response"));
           }
         } catch (err) {
           console.error("Poll error:", err);

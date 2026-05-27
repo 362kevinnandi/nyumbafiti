@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from auth import hash_password, require_role
 from db import get_db
-from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, should_use_demo_fallback, stk_push
+from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, schedule_status_poll, should_use_demo_fallback, stk_push
 from models import VIEWING_FEE_KES, Viewing, ViewingCreate, new_id, now_iso
 
 router = APIRouter(tags=["viewings"])
@@ -243,6 +243,10 @@ async def book_viewing(payload: ViewingCreate):
         asyncio.create_task(
             schedule_demo_callback(resp["CheckoutRequestID"], _process_callback_payload)
         )
+    elif resp.get("CheckoutRequestID"):
+        asyncio.create_task(
+            schedule_status_poll(resp["CheckoutRequestID"], _process_callback_payload)
+        )
 
     return {
         "viewing_id": viewing_id,
@@ -268,6 +272,7 @@ async def get_viewing_status(viewing_id: str):
         "scheduled_date": viewing["scheduled_date"],
         "scheduled_time": viewing["scheduled_time"],
         "payment_status": payment["status"] if payment else "unknown",
+        "payment_result_desc": payment.get("result_desc") if payment else None,
         "viewing_fee": viewing["viewing_fee"],
         "mpesa_receipt": payment.get("mpesa_receipt") if payment else None,
     }

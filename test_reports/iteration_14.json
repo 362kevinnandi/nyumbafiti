@@ -1,0 +1,45 @@
+{
+  "summary": "Round 6 — STK push false-positive fix tested end-to-end. Validated: (a) MPESA_DEMO_FALLBACK=false in env; (b) /cancel and /check endpoints (404 on missing, state-machine 400 on non-pending); (c) failure path on 502 marks payment as 'failed' and emits a 'Payment did not go through' notification; (d) two-step flow works for water/electricity/service/other bill types (2.5% service fee correctly computed at 50.0 on 2000); (e) UI PayDialog renders dialog-title 'Pay {type} bill' for non-rent and shows failure state with Try again. 10 pytest cases passed, 4 skipped (sandbox-acceptance dependent — see context for next agent).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/payments/mpesa/stk-push (failure path)", "issue": "Notification created has kind='payment_succeeded' even though the title says 'Payment did not go through'. Should be kind='payment_failed' for client filtering/styling."},
+      {"endpoint": "POST /api/bills", "issue": "BillType literal in /app/backend/models.py is 'service' (not 'service_charge' as the Round 6 spec wording). Frontend & spec wording should align — review may want to add 'service_charge' alias or rename. Right now /bills accepts only ['rent','water','electricity','service','other']."},
+      {"endpoint": "Safaricom sandbox", "issue": "Sandbox is unstable: oauth/v1/generate returns 403 most of the time but intermittently accepts STK. This is the sandbox itself, not the app — but means 4 conditional tests skip when 502 occurs back-to-back."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Bills > PayDialog (failure state)", "issues": ["Toast text 'STK push failed — try again' shows red icon and overlays the dialog header. Acceptable but could be hidden when modal is showing the same content underneath."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_round6.py",
+    "/app/test_reports/pytest/round6_results.xml"
+  ],
+  "action_items": [
+    "Change failure notification kind from 'payment_succeeded' to 'payment_failed' in payments_router._process_callback_payload / 502 except branch (semantic correctness for clients filtering by kind).",
+    "Decide on 'service' vs 'service_charge' bill_type label — spec uses service_charge but model uses 'service'. Either rename model literal or alias.",
+    "Optional: schedule a delayed retry on Daraja oauth 403 to reduce sandbox flakiness."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/routers/payments_router.py – 593 lines; close to the 700-line guideline. Consider splitting STK push / callback / check-cancel into a separate sub-module before adding more endpoints.",
+    "/app/backend/mpesa.py: get_access_token() opens a new httpx.AsyncClient per call with no caching of the token — every STK push pays a roundtrip. Cache token in-process with TTL ~50 minutes to halve sandbox calls.",
+    "Failure notification 'kind' is mis-labelled as payment_succeeded (see action item).",
+    "Direct 502 path in stk-push does not record result_code (Safaricom error code) on the payment doc — only result_desc. _process_callback_payload (synthesized) is the only path that records result_code. Storing the HTTP/JSON error code would aid debugging.",
+    "Late-callback idempotency was not exercised end-to-end via tests (sandbox flakiness); code-review confirms early-return on already-terminal status exists in _process_callback_payload, so behavior is consistent with the spec."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_round6.py (new)",
+    "/app/test_reports/pytest/round6_results.xml (new)"
+  ],
+  "success_rate": {"backend": "100% (10/10 executed)", "frontend": "PayDialog failure-state verified manually via Playwright"},
+  "test_credentials": "admin@nyumbaos.co.ke / admin123, mary@demo.nyumba / demo123, tenant1@demo.nyumba / demo123, tenant4@demo.nyumba / demo123 — all WORKING after running `python3 /app/backend/seed_demo_data.py --reset`.",
+  "seed_data_creation": "Ran /app/backend/seed_demo_data.py --reset at start of this iteration because demo creds were invalid (401 on login) prior to reset — same recurring issue noted in iteration_13. Also created 4 TEST_R6_FX_* and ~7 TEST_R6_* bills under tenant1 / mary's unit; these remain in pending state and can be reused or cleaned up.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Safaricom sandbox in this environment is HIGHLY flaky (oauth/v1/generate returns 403 most calls, but ~10-15% of calls succeed). The 4 skipped tests (test_cancel_auth_other_tenant_forbidden, test_check_auth_landlord_and_admin_allowed, test_callback_failure_creates_notification, test_late_callback_does_not_revive_failed_payment) all require a successful STK push to seed a pending payment. To run them deterministically, set MPESA_CONSUMER_KEY='' temporarily (puts mpesa.py in is_demo_mode→true; demo mode returns synthetic accepted STK without sandbox call) then run the test, then restore env. Alternatively, fix sandbox keys to ones that match shortcode 174379+passkey. Yard sale / viewings flow paths were NOT tested end-to-end here — review_request mentioned them but the same sandbox limitation applies; code-review only confirmed schedule_status_poll wiring in both yardsale_router.py and viewings_router.py.",
+  "rca of the issue": "Round 6 fix verified working:\n- Repro: tenant initiates STK, ignores PIN. With MPESA_DEMO_FALLBACK=true (old behaviour) the 15s demo fallback callback would synthesize ResultCode=0 → bill marked paid even though no real M-Pesa receipt existed.\n- Fix: MPESA_DEMO_FALLBACK defaults to false (verified in /app/backend/.env); should_use_demo_fallback() now requires resp._demo OR is_demo_mode() (no Daraja keys at all). Real STKs schedule schedule_status_poll() which calls /stkpushquery and synthesizes a TRUE callback (ResultCode 0/1032/1037/...).\n- Mitigation tests run: 502 path correctly marks payment failed + creates notification; UI PayDialog renders 'Payment didn't go through' with Try again + Cancel; non-rent bill types funnel through the same two-step flow with correct 2.5% fee."
+}
