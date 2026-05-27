@@ -74,27 +74,52 @@ async def _process_callback_payload(payload: dict):
             {"$set": {"status": "scheduled", "updated_at": now_iso()}},
         )
     elif payment.get("yard_sale_id"):
-        from datetime import datetime, timedelta, timezone
-        from models import YARD_SALE_FEATURE_DAYS
-        feat_until = (datetime.now(timezone.utc) + timedelta(days=YARD_SALE_FEATURE_DAYS)).isoformat()
-        await db["yard_sale"].update_one(
-            {"id": payment["yard_sale_id"]},
-            {"$set": {
-                "featured": True,
-                "featured_until": feat_until,
-                "updated_at": now_iso(),
-            }},
-        )
-        # notify the seller
+        purpose = payment.get("purpose", "yard_sale_feature")
+        from notifications import notify_user
         item = await db["yard_sale"].find_one({"id": payment["yard_sale_id"]})
-        if item and payment.get("tenant_id"):
-            from notifications import notify_user
-            await notify_user(
-                payment["tenant_id"], "yard_sale_featured",
-                f"\"{item['title']}\" is now featured",
-                f"Your listing will appear at the top of the marketplace until {feat_until[:10]}.",
-                link="/yard-sale",
+        if purpose == "yard_sale_contact":
+            await db["yard_sale"].update_one(
+                {"id": payment["yard_sale_id"]},
+                {"$set": {"contact_unlocked": True, "updated_at": now_iso()}},
             )
+            if item and payment.get("tenant_id"):
+                await notify_user(
+                    payment["tenant_id"], "yard_sale_featured",
+                    f"Contact unlocked for \"{item['title']}\"",
+                    "Buyers can now see your phone & email on the listing. They can call, message or post directly.",
+                    link=f"/yard-sale/{payment['yard_sale_id']}",
+                )
+        elif purpose == "yard_sale_broadcast":
+            await db["yard_sale"].update_one(
+                {"id": payment["yard_sale_id"]},
+                {"$set": {"scope": "all", "updated_at": now_iso()}},
+            )
+            if item and payment.get("tenant_id"):
+                await notify_user(
+                    payment["tenant_id"], "yard_sale_featured",
+                    f"\"{item['title']}\" is now broadcast platform-wide",
+                    "Your listing is visible to every tenant on NyumbaOS. Featured boosts can be added separately.",
+                    link=f"/yard-sale/{payment['yard_sale_id']}",
+                )
+        else:  # yard_sale_feature (default)
+            from datetime import datetime, timedelta, timezone
+            from models import YARD_SALE_FEATURE_DAYS
+            feat_until = (datetime.now(timezone.utc) + timedelta(days=YARD_SALE_FEATURE_DAYS)).isoformat()
+            await db["yard_sale"].update_one(
+                {"id": payment["yard_sale_id"]},
+                {"$set": {
+                    "featured": True,
+                    "featured_until": feat_until,
+                    "updated_at": now_iso(),
+                }},
+            )
+            if item and payment.get("tenant_id"):
+                await notify_user(
+                    payment["tenant_id"], "yard_sale_featured",
+                    f"\"{item['title']}\" is now featured",
+                    f"Your listing will appear at the top of the marketplace until {feat_until[:10]}.",
+                    link=f"/yard-sale/{payment['yard_sale_id']}",
+                )
     elif payment.get("bill_id"):
         bill = await db["bills"].find_one({"id": payment["bill_id"]})
         if bill:

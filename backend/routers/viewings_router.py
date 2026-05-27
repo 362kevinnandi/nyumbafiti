@@ -82,6 +82,7 @@ async def public_listings(
             "featured": bool(prop.get("featured", False)),
             "category": prop.get("category", "apartment"),
             "sub_type": prop.get("sub_type"),
+            "tenancy_types": prop.get("tenancy_types") or ["rental"],
             "landlord_name": l_map.get(u["landlord_id"], {}).get("full_name", "Verified Landlord"),
         })
     # Featured first, then by rent ascending as tiebreaker

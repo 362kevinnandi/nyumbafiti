@@ -78,7 +78,7 @@ export default function AppShell() {
   const nav = NAV_BY_ROLE[user.role] || [];
 
   return (
-    <div className="min-h-screen flex bg-[#FAFAFA]">
+    <div className="min-h-screen flex bg-warm">
       {/* Sidebar */}
       <aside className="hidden md:flex w-64 bg-zinc-50 border-r border-zinc-200 flex-col" data-testid="app-sidebar">
         <div className="px-5 py-5 border-b border-zinc-200">

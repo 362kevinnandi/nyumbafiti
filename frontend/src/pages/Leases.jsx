@@ -242,7 +242,7 @@ export default function LeasesPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        {l.pdf_path && (
+                        {l.pdf_path && l.pdf_path.length > 0 && (
                           <a href={mediaUrl(l.pdf_path)} target="_blank" rel="noreferrer" className="text-xs flex items-center gap-1 px-2 h-7 border border-zinc-200 rounded-md hover:bg-zinc-100" data-testid={`lease-download-${l.id}`}>
                             <Download className="w-3 h-3" /> PDF
                           </a>

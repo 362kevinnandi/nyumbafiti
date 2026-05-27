@@ -18,8 +18,8 @@ ADMIN_PASSWORD = "admin123"
 LANDLORD_EMAIL = "land@demo.com"
 LANDLORD_PASSWORD = "demo123"
 
-CATEGORIES = ("apartment", "bedsitter", "single_room", "self_contained",
-              "standalone", "compound", "airbnb")
+CATEGORIES = ("apartment", "own_compound")
+SUB_TYPES = ("bedsitter", "single_room", "1br", "2br", "3br", "4br", "5br_plus")
 
 
 def _login(email, pw):
@@ -72,12 +72,13 @@ class TestCreateProperty:
             ("images", ("b.png", _png_bytes(), "image/png")),
         ]
         data = {"name": f"TEST_Prop_{uuid.uuid4().hex[:6]}", "address": "Westlands",
-                "description": "Phase1 test", "category": "bedsitter"}
+                "description": "Phase1 test", "category": "apartment", "sub_type": "bedsitter"}
         r = requests.post(f"{API}/properties", data=data, files=files,
                           headers=_headers(landlord_token), timeout=30)
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["category"] == "bedsitter"
+        assert body["category"] == "apartment"
+        assert body["sub_type"] == "bedsitter"
         assert body["featured"] is False
         assert isinstance(body["images"], list)
         assert len(body["images"]) == 2
@@ -119,11 +120,12 @@ class TestUpdateProperty:
     def test_landlord_can_edit_own(self, landlord_token):
         pid = pytest.shared_prop_id
         r = requests.patch(f"{API}/properties/{pid}",
-                           json={"name": "TEST_Renamed", "category": "airbnb"},
+                           json={"name": "TEST_Renamed", "category": "apartment", "sub_type": "1br"},
                            headers=_headers(landlord_token), timeout=10)
         assert r.status_code == 200, r.text
         assert r.json()["name"] == "TEST_Renamed"
-        assert r.json()["category"] == "airbnb"
+        assert r.json()["category"] == "apartment"
+        assert r.json()["sub_type"] == "1br"
 
     def test_landlord_featured_field_silently_ignored(self, landlord_token):
         pid = pytest.shared_prop_id
@@ -167,7 +169,7 @@ class TestPublicListings:
         # Featured property
         r = requests.post(f"{API}/properties",
                           data={"name": f"TEST_FEAT_{uuid.uuid4().hex[:6]}",
-                                "address": "Kileleshwa", "category": "compound"},
+                                "address": "Kileleshwa", "category": "own_compound"},
                           files=[("images", ("a.png", _png_bytes(), "image/png"))],
                           headers=_headers(landlord_token), timeout=15)
         feat_pid = r.json()["id"]
@@ -219,12 +221,12 @@ class TestPublicListings:
             assert max(feat_indexes) < min(non_feat_indexes), "Featured items must come first"
 
     def test_category_filter(self, featured_setup):
-        r = requests.get(f"{API}/public/listings", params={"category": "compound"}, timeout=10)
+        r = requests.get(f"{API}/public/listings", params={"category": "own_compound"}, timeout=10)
         assert r.status_code == 200
         items = r.json()
-        # All returned should be compound
+        # All returned should be own_compound
         for it in items:
-            assert it["category"] == "compound"
+            assert it["category"] == "own_compound"
         # Featured compound prop should be in
         assert any(x["property"]["id"] == featured_setup["feat_pid"] for x in items)
 
@@ -233,7 +235,7 @@ class TestPublicListings:
         r = requests.get(f"{API}/public/listings/{uid}", timeout=10)
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["property"]["category"] == "compound"
+        assert body["property"]["category"] == "own_compound"
         assert body["property"]["featured"] is True
         assert isinstance(body["property"]["images"], list)
         assert len(body["property"]["images"]) >= 1
@@ -263,7 +265,7 @@ class TestDeleteProperty:
         # create prop + unit
         r = requests.post(f"{API}/properties",
                           data={"name": f"TEST_DEL_{uuid.uuid4().hex[:6]}",
-                                "address": "x", "category": "single_room"},
+                                "address": "x", "category": "apartment", "sub_type": "single_room"},
                           headers=_headers(landlord_token), timeout=10)
         pid = r.json()["id"]
         u = requests.post(f"{API}/units",

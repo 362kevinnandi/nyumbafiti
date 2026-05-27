@@ -35,19 +35,24 @@ async def list_pending_approvals(_: dict = Depends(require_role("admin"))):
         {"role": "caretaker", "approval_status": "pending"},
         {"_id": 0, "password_hash": 0},
     ).sort("created_at", -1).to_list(500)
+    security = await db["users"].find(
+        {"role": "security", "approval_status": "pending"},
+        {"_id": 0, "password_hash": 0},
+    ).sort("created_at", -1).to_list(500)
 
     # Enrich with landlord names + unit info for context
     all_landlord_ids = list({
         *[p["landlord_id"] for p in properties],
         *[t["landlord_id"] for t in tenants if t.get("landlord_id")],
         *[c["landlord_id"] for c in caretakers if c.get("landlord_id")],
+        *[s["landlord_id"] for s in security if s.get("landlord_id")],
     })
     landlords = await db["users"].find(
         {"id": {"$in": all_landlord_ids}}, {"_id": 0, "id": 1, "full_name": 1, "email": 1}
     ).to_list(500) if all_landlord_ids else []
     l_map = {ld["id"]: ld for ld in landlords}
 
-    for items in (properties, tenants, caretakers):
+    for items in (properties, tenants, caretakers, security):
         for it in items:
             ll = l_map.get(it.get("landlord_id"))
             if ll:
@@ -77,7 +82,8 @@ async def list_pending_approvals(_: dict = Depends(require_role("admin"))):
         "properties": properties,
         "tenants": tenants,
         "caretakers": caretakers,
-        "total_pending": len(properties) + len(tenants) + len(caretakers),
+        "security": security,
+        "total_pending": len(properties) + len(tenants) + len(caretakers) + len(security),
     }
 
 
@@ -116,7 +122,7 @@ async def decide_user(
     user = await db["users"].find_one({"id": user_id})
     if not user:
         raise HTTPException(404, "User not found")
-    if user["role"] not in ("tenant", "caretaker"):
+    if user["role"] not in ("tenant", "caretaker", "security"):
         raise HTTPException(400, "Only tenants and caretakers require approval")
     new_status = "approved" if decision.approve else "rejected"
     await db["users"].update_one(

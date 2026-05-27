@@ -84,7 +84,7 @@ export default function MarketplacePage() {
   const slides = useMemo(() => chunk(filtered, CARDS_PER_SLIDE), [filtered]);
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA]" data-testid="marketplace-page">
+    <div className="min-h-screen bg-warm" data-testid="marketplace-page">
       <header className="bg-white border-b border-zinc-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <Link to="/marketplace" className="flex items-center gap-2" data-testid="marketplace-logo">

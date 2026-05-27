@@ -97,6 +97,15 @@ async def _migrate_approval_status():
         {"agreement_type": {"$exists": False}},
         {"$set": {"agreement_type": "lease"}},
     )
+    # Phase 5: yard sale new fields
+    await db["yard_sale"].update_many(
+        {"scope": {"$exists": False}},
+        {"$set": {"scope": "property"}},
+    )
+    await db["yard_sale"].update_many(
+        {"contact_unlocked": {"$exists": False}},
+        {"$set": {"contact_unlocked": False}},
+    )
     user_res = await db["users"].update_many(
         {"role": {"$in": ["tenant", "caretaker", "security"]}, "approval_status": {"$exists": False}},
         {"$set": {"approval_status": "approved"}},

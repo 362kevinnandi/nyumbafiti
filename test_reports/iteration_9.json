@@ -1,0 +1,41 @@
+{
+  "summary": "Round 2 (Yard Sale monetization) end-to-end tested. 16/16 new backend tests in /app/backend/tests/test_round2.py PASS, and previous 21/21 Round 1 tests still PASS (37/37 combined, no regression). Verified: (1) new listings default scope='property' + contact_unlocked=false; (2) seller_phone/seller_email masked to '' for non-owner non-admin viewers but unmasked for owner/admin/after-unlock; (3) cross-landlord tenant gets 403 on GET /yard-sale/listings/{id} and listing is filtered out of GET /yard-sale/listings; (4) POST /unlock-contact charges KES 35 via M-Pesa demo STK, after ~5s callback flips contact_unlocked=true and phone becomes visible to in-network viewers, replays return 400; (5) POST /broadcast charges KES 50, after callback flips scope='all' and cross-network tenant now sees listing, replay returns 400; (6) POST /feature still charges KES 100 and sets featured=true with featured_until; (7) non-owner gets 403 on all three monetization endpoints; (8) migration ensures every existing listing has scope+contact_unlocked fields. Frontend smoke: /yard-sale grid shows 4 cards with scope badges (Property/Platform), 'Contact locked' chip on locked cards, cards Link to /yard-sale/{id}, detail page renders Swiper gallery, title/price/seller card, back button works, bg-warm gradient applied, zero console errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/yard-sale/listings/{id}/broadcast (and /unlock-contact, /feature)", "issue": "Order of checks: state-conflict (400 'already broadcast/unlocked/featured') is evaluated BEFORE the ownership (403) check. So a non-owner attempting to broadcast an already-broadcast listing gets 400 instead of 403. Test reordered to assert 403 only while listing is fresh. Cosmetic but worth aligning to REST norms (auth/permission errors before resource-state errors)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_round2.py",
+    "/app/test_reports/pytest/round2_results.xml"
+  ],
+  "action_items": [
+    "(Optional, cosmetic) In yardsale_router.py, swap order so the seller_id != user.id 403 check fires BEFORE the 'already unlocked/broadcast/featured' 400 check. Currently a non-owner attacker can probe state via 400 vs 404 vs 403 disambiguation.",
+    "(Carried over from iteration_8, not regressed) Two pre-existing /api/uploads/leases/* 404s on /leases page persist — null-check pdf_path."
+  ],
+  "critical_code_review_comments": [
+    "yardsale_router._mask_contact correctly returns shallow-copy with phone/email='' only when contact_unlocked=False AND viewer is neither owner nor admin — matches spec.",
+    "_can_see_listing handles 4 cases cleanly: admin always sees, owner always sees, scope=='all' always visible, otherwise must share landlord_id (or be the landlord themselves). Cross-network isolation verified end-to-end.",
+    "_initiate_yardsale_payment is a clean DRY refactor shared between /unlock-contact and /broadcast — same idempotency-key/payment-doc/STK pattern as /feature. payments_router._process_callback_payload correctly branches on purpose ('yard_sale_contact' -> contact_unlocked=True, 'yard_sale_broadcast' -> scope='all', 'yard_sale_feature' -> featured+featured_until).",
+    "POST /yard-sale/listings creation ignores user-supplied scope and hard-codes 'property' — intentional per spec (broadcast requires paid STK). Form param 'scope' is validated but the doc inserts hard-coded 'property'. Slightly confusing that the param is accepted+validated then ignored; consider removing the Form(...) param or honoring it for landlord+admin posters.",
+    "Frontend YardSaleDetail.jsx: nice use of Swiper Thumbs module; isOwner-gated Boosts panel correctly hides for non-owners; contactHidden gating mirrors backend masking; pay dialog uses multipart form to match Form(...) backend signature.",
+    "Frontend YardSale.jsx: Link wrapping the whole card means the inner 'Mark sold' and 'Delete' buttons need stopPropagation — handled via onClick=(e)=>e.preventDefault() on the wrapper div. Good.",
+    "Phone validation in _initiate_yardsale_payment is consistent with /feature: normalize then assert starts with '254' and len==12 and isdigit. Same Daraja-compatible format across all three boosts."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_round2.py (NEW — 16 tests, all green)"
+  ],
+  "success_rate": {"backend": "100% (Round 2: 16/16, Round 1 regression: 21/21 still pass — 37/37 combined)", "frontend": "100% on Round 2 smoke (grid badges, contact-locked chip, card link to detail, Swiper gallery, back button, zero console errors)"},
+  "test_credentials": "land@demo.com/demo123, admin@nyumbaos.co.ke/admin123. Per-run: test_r2_tenA_<uniq>@demo.com/tenant123 (in-network), test_r2_landB_<uniq>@demo.com/land123 (different landlord), test_r2_tenB_<uniq>@demo.com/tenant123 (cross-network).",
+  "seed_data_creation": "Per-run: 1 unit under existing landlord_a property (or fresh TEST_R2_<uniq> property if none), 1 fresh landlord B + 1 property + 1 unit + 1 tenant on B's network, 1 yard sale listing on tenant_a (paid to unlock contact, broadcast, and feature). UNIQ ensures idempotent re-runs.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run with: REACT_APP_BACKEND_URL=<url> MONGO_URL=<...> DB_NAME=<...> pytest backend/tests/test_round2.py -v. test_round1.py + test_round2.py together = 37 tests / ~45s. Demo M-Pesa callback latency is ~4s, tests sleep 7s after STK init. Tests reorder TestBroadcast.test_aa_other_user_cannot_broadcast to run before test_broadcast_flow because the 400-before-403 ordering in routers means once scope='all' is set, the 403 ownership check is masked by 400 'already broadcast'. Phase 3 (Round 3 — social community/AI chat) is the next round per agent note; not tested.",
+  "rca of the issue": "N/A — all Round 2 acceptance criteria verified. Single minor finding: monetization endpoints return 400 'already X' before 403 ownership check; harmless in normal flows but theoretically leaks state to unauthenticated/non-owner probers. Trivial fix: reorder the if-branches in unlock_contact/broadcast_listing/feature_listing handlers in yardsale_router.py."
+}

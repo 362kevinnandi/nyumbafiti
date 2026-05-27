@@ -348,6 +348,7 @@ class ForumReply(BaseModel):
 
 # ============ PHASE 3: YARD SALE MARKETPLACE ============
 YardSaleStatus = Literal["active", "sold", "removed"]
+YardSaleScope = Literal["property", "all"]
 YardSaleCategory = Literal[
     "electronics", "furniture", "appliances", "clothing",
     "books", "kitchen", "sports", "other",
@@ -365,6 +366,7 @@ class YardSaleListing(BaseModel):
     seller_id: str  # tenant user id
     seller_name: str
     seller_phone: str
+    seller_email: Optional[str] = ""
     landlord_id: Optional[str] = None
     property_id: Optional[str] = None
     title: str
@@ -374,6 +376,8 @@ class YardSaleListing(BaseModel):
     images: List[str] = []
     featured: bool = False
     featured_until: Optional[str] = None
+    contact_unlocked: bool = False
+    scope: YardSaleScope = "property"
     status: YardSaleStatus = "active"
     created_at: str
     updated_at: str

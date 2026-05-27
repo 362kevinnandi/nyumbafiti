@@ -311,6 +311,7 @@ class TestLeases:
             "start_date": "2026-02-01",
             "end_date": "2027-01-31",
             "terms": "Test terms",
+            "agreement_type": "rental",
         }
         r = requests.post(f"{API}/leases", headers=_h(landlord_token), json=payload)
         assert r.status_code == 200, r.text
