@@ -41,3 +41,9 @@ async def ensure_indexes():
     await db["visitor_passes"].create_index("token", unique=True)
     await db["visitor_passes"].create_index([("landlord_id", 1), ("created_at", -1)])
     await db["notifications"].create_index([("user_id", 1), ("read", 1), ("created_at", -1)])
+    # Phase 5 social + AI
+    await db["reactions"].create_index([("target_id", 1), ("user_id", 1)], unique=True)
+    await db["reactions"].create_index([("target_id", 1), ("type", 1)])
+    await db["announcement_views"].create_index([("announcement_id", 1), ("user_id", 1)], unique=True)
+    await db["ai_conversations"].create_index("session_id", unique=True)
+    await db["ai_conversations"].create_index([("user_id", 1), ("updated_at", -1)])

@@ -1,5 +1,6 @@
 """M-Pesa Payment routes - STK Push and callback."""
 import asyncio
+import logging
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -10,6 +11,7 @@ from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, stk_pus
 from models import PaymentInitiate, new_id, now_iso
 
 router = APIRouter(tags=["payments"])
+logger = logging.getLogger("payments")
 
 
 async def _process_callback_payload(payload: dict):
@@ -73,6 +75,45 @@ async def _process_callback_payload(payload: dict):
             {"id": payment["viewing_id"]},
             {"$set": {"status": "scheduled", "updated_at": now_iso()}},
         )
+        # Phase 5: auto-issue a 24h visitor pass to the prospect for the property they booked
+        try:
+            v = await db["viewings"].find_one({"id": payment["viewing_id"]})
+            if v and v.get("prospect_id") and v.get("property_id"):
+                import secrets
+                from datetime import datetime, timedelta, timezone
+                prospect = await db["users"].find_one({"id": v["prospect_id"]})
+                if prospect:
+                    expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+                    pass_doc = {
+                        "id": new_id(),
+                        "token": secrets.token_urlsafe(20),
+                        "tenant_id": v["prospect_id"],  # reuse the field for prospect
+                        "tenant_name": prospect.get("full_name", "Prospect"),
+                        "landlord_id": v.get("landlord_id"),
+                        "property_id": v["property_id"],
+                        "unit_id": v.get("unit_id"),
+                        "visitor_name": prospect.get("full_name", "Prospect"),
+                        "visitor_phone": prospect.get("phone", ""),
+                        "expected_time": v.get("scheduled_time", now_iso()),
+                        "notes": f"Auto-issued for viewing #{v['id'][:8]}. Bring signed-up ID for security.",
+                        "status": "active",
+                        "used_at": None,
+                        "used_by_caretaker_id": None,
+                        "used_by_caretaker_name": None,
+                        "expires_at": expires_at,
+                        "created_at": now_iso(),
+                        "is_prospect_pass": True,
+                    }
+                    await db["visitor_passes"].insert_one(pass_doc)
+                    from notifications import notify_user
+                    await notify_user(
+                        v["prospect_id"], "visitor_arrived",
+                        "Your viewing visitor pass is ready",
+                        "A 24-hour QR pass has been issued for your property viewing. Show at the gate and carry your signed-up ID.",
+                        link="/visitors",
+                    )
+        except Exception as exc:
+            logger.warning("Could not auto-issue prospect visitor pass: %s", exc)
     elif payment.get("yard_sale_id"):
         purpose = payment.get("purpose", "yard_sale_feature")
         from notifications import notify_user

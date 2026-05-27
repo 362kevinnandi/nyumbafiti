@@ -374,6 +374,8 @@ async def unlock_contact(
     item = await db["yard_sale"].find_one({"id": lid})
     if not item:
         raise HTTPException(404, "Listing not found")
+    if user["role"] != "admin" and item["seller_id"] != user["id"]:
+        raise HTTPException(403, "Forbidden")
     if item.get("contact_unlocked"):
         raise HTTPException(400, "Contact is already unlocked on this listing")
     return await _initiate_yardsale_payment(
@@ -393,6 +395,8 @@ async def broadcast_listing(
     item = await db["yard_sale"].find_one({"id": lid})
     if not item:
         raise HTTPException(404, "Listing not found")
+    if user["role"] != "admin" and item["seller_id"] != user["id"]:
+        raise HTTPException(403, "Forbidden")
     if item.get("scope") == "all":
         raise HTTPException(400, "Listing is already broadcast to all tenants")
     return await _initiate_yardsale_payment(

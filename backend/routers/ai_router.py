@@ -162,3 +162,186 @@ async def recommend_properties(
             for c in compact[:3]
         ]
         return RecommendResponse(items=items, message="Top affordable matches.", used_llm=False)
+
+
+# ====================== PHASE 5: AI CHAT CONCIERGE ======================
+
+class ChatRequest(BaseModel):
+    session_id: Optional[str] = None
+    message: str
+
+
+class ChatResponse(BaseModel):
+    session_id: str
+    reply: str
+    used_llm: bool
+
+
+async def _build_listings_context(db) -> str:
+    """Compact summary of vacant listings the AI can reference."""
+    approved = await db["properties"].find(
+        {"approval_status": "approved"}, {"_id": 0, "id": 1, "name": 1, "address": 1,
+                                          "category": 1, "sub_type": 1, "tenancy_types": 1}
+    ).to_list(500)
+    if not approved:
+        return "[no active listings]"
+    pids = [p["id"] for p in approved]
+    pmap = {p["id"]: p for p in approved}
+    units = await db["units"].find(
+        {"occupied": False, "property_id": {"$in": pids}},
+        {"_id": 0, "id": 1, "property_id": 1, "unit_number": 1, "rent_amount": 1, "bedrooms": 1},
+    ).to_list(200)
+    out = []
+    for u in units[:30]:
+        p = pmap.get(u["property_id"])
+        if not p:
+            continue
+        out.append(
+            f"- {p['name']} · {p['address']} · {p.get('category','apartment')}"
+            f"{'/' + p['sub_type'] if p.get('sub_type') else ''}"
+            f" · KES {int(u['rent_amount']):,}/mo · {u['bedrooms']} bed · listing_id={u['id']}"
+        )
+    return "\n".join(out) if out else "[no vacant units]"
+
+
+@router.post("/ai/chat", response_model=ChatResponse)
+async def ai_chat(payload: ChatRequest, user: dict = Depends(get_current_user)):
+    """Conversational AI concierge. Persists multi-turn history per session.
+    Visible to admin for moderation. Falls back gracefully if LLM unavailable."""
+    db = get_db()
+    session_id = payload.session_id or new_id()
+
+    # Append user message immediately
+    user_turn = {
+        "role": "user",
+        "text": payload.message,
+        "created_at": now_iso(),
+    }
+    await db["ai_conversations"].update_one(
+        {"session_id": session_id},
+        {
+            "$setOnInsert": {
+                "session_id": session_id,
+                "user_id": user["id"],
+                "user_name": user["full_name"],
+                "user_role": user["role"],
+                "created_at": now_iso(),
+            },
+            "$set": {"updated_at": now_iso()},
+            "$push": {"messages": user_turn},
+        },
+        upsert=True,
+    )
+
+    conv = await db["ai_conversations"].find_one({"session_id": session_id})
+    history = conv.get("messages", []) if conv else []
+
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    reply_text = ""
+    used_llm = False
+
+    if not api_key:
+        reply_text = (
+            "I'm in basic mode right now (no LLM credits). "
+            "Try the AI Match form on the marketplace for direct property recommendations, "
+            "or filter by 2BR + Westlands in the search bar above."
+        )
+    else:
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            ctx = await _build_listings_context(db)
+            system_msg = (
+                "You are NyumbaOS Concierge, a friendly Nairobi rental assistant. "
+                "Be concise (2-4 sentences). Use KES amounts. If the user shares "
+                "preferences (budget, bedrooms, area like Westlands/Kilimani), recommend "
+                "specific listings from the catalog below by name and listing_id. "
+                "If they ask about how the platform works (viewings KES 200, 3.5% commission, "
+                "leases, yard sale), answer truthfully. If they ask about something off-topic, "
+                "politely redirect.\n\n"
+                f"AVAILABLE LISTINGS:\n{ctx}"
+            )
+            chat = LlmChat(
+                api_key=api_key,
+                session_id=session_id,
+                system_message=system_msg,
+            ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+            # Replay previous messages so model has continuity within session
+            for h in history[:-1]:  # all except the just-inserted current message
+                if h["role"] == "user":
+                    await chat.send_message(UserMessage(text=h["text"]))
+            raw = await chat.send_message(UserMessage(text=payload.message))
+            reply_text = (raw if isinstance(raw, str) else str(raw)).strip()
+            used_llm = True
+        except Exception as exc:
+            logger.warning("AI chat fallback: %s", exc)
+            reply_text = (
+                "Hmm, my AI is briefly unreachable. While I'm back: try the search "
+                "(e.g. 'Westlands 2 bedroom') or the AI Match button for filtered picks."
+            )
+
+    assistant_turn = {
+        "role": "assistant",
+        "text": reply_text,
+        "used_llm": used_llm,
+        "created_at": now_iso(),
+    }
+    await db["ai_conversations"].update_one(
+        {"session_id": session_id},
+        {
+            "$push": {"messages": assistant_turn},
+            "$set": {"updated_at": now_iso()},
+        },
+    )
+    return ChatResponse(session_id=session_id, reply=reply_text, used_llm=used_llm)
+
+
+@router.get("/ai/conversations")
+async def list_my_conversations(user: dict = Depends(get_current_user)):
+    db = get_db()
+    rows = await db["ai_conversations"].find(
+        {"user_id": user["id"]}, {"_id": 0}
+    ).sort("updated_at", -1).to_list(50)
+    # Return summary list only
+    return [
+        {
+            "session_id": r["session_id"],
+            "created_at": r["created_at"],
+            "updated_at": r.get("updated_at", r["created_at"]),
+            "message_count": len(r.get("messages", [])),
+            "preview": (r.get("messages", [{}])[0].get("text", "") if r.get("messages") else "")[:80],
+        }
+        for r in rows
+    ]
+
+
+@router.get("/ai/conversations/{session_id}")
+async def get_conversation(session_id: str, user: dict = Depends(get_current_user)):
+    db = get_db()
+    conv = await db["ai_conversations"].find_one({"session_id": session_id}, {"_id": 0})
+    if not conv:
+        raise HTTPException(404, "Conversation not found")
+    if user["role"] != "admin" and conv["user_id"] != user["id"]:
+        raise HTTPException(403, "Forbidden")
+    return conv
+
+
+@router.get("/admin/ai-conversations")
+async def admin_list_all_conversations(user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    db = get_db()
+    rows = await db["ai_conversations"].find({}, {"_id": 0}).sort("updated_at", -1).to_list(500)
+    return [
+        {
+            "session_id": r["session_id"],
+            "user_id": r["user_id"],
+            "user_name": r.get("user_name", "?"),
+            "user_role": r.get("user_role", "?"),
+            "created_at": r["created_at"],
+            "updated_at": r.get("updated_at", r["created_at"]),
+            "message_count": len(r.get("messages", [])),
+            "preview": (r.get("messages", [{}])[0].get("text", "") if r.get("messages") else "")[:120],
+        }
+        for r in rows
+    ]
+

@@ -11,7 +11,7 @@ import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
 import "./swiper-overrides.css";
-import AiRecommendButton from "@/components/AiRecommendButton";
+import AiChatButton from "@/components/AiChatButton";
 import CardImageCarousel from "@/components/CardImageCarousel";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1630241466166-22e43156d8c0?crop=entropy&cs=srgb&fm=jpg&q=85&w=800";
@@ -97,7 +97,7 @@ export default function MarketplacePage() {
             </div>
           </Link>
           <div className="flex items-center gap-2">
-            <AiRecommendButton />
+            <AiChatButton />
             {user ? (
               <Button onClick={() => navigate("/dashboard")} className="bg-zinc-950 hover:bg-zinc-800 h-9 rounded-md text-sm" data-testid="dashboard-link">
                 Dashboard <ArrowRight className="w-4 h-4 ml-1" />

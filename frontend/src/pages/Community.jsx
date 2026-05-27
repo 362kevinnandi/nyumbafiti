@@ -15,6 +15,8 @@ import {
   Megaphone, MessageSquare, Plus, Pin, Lock, Trash2, Paperclip,
   Send, ArrowLeft,
 } from "lucide-react";
+import ReactionsBar from "@/components/ReactionsBar";
+import ViewReceipts from "@/components/ViewReceipts";
 
 const PROPERTY_SCOPED = ["landlord", "tenant", "caretaker"];
 
@@ -94,7 +96,13 @@ function Announcements({ user }) {
     const r = await api.get("/announcements");
     setItems(r.data || []);
     setLoading(false);
-  }, []);
+    // Fire-and-forget read receipts for announcements the viewer didn't author
+    (r.data || []).forEach((a) => {
+      if (a.author_id !== user.id) {
+        api.post(`/social/announcement/${a.id}/view`).catch(() => {});
+      }
+    });
+  }, [user.id]);
 
   useEffect(() => {
     load();
@@ -255,6 +263,10 @@ function Announcements({ user }) {
                 <div className="text-[10px] text-zinc-400 uppercase tracking-wider mt-3">
                   {new Date(a.created_at).toLocaleString()}
                 </div>
+                <div className="mt-3 pt-3 border-t border-zinc-100 flex items-center justify-between gap-2 flex-wrap">
+                  <ReactionsBar targetType="announcement" targetId={a.id} />
+                  <ViewReceipts announcementId={a.id} authorId={a.author_id} currentUser={user} />
+                </div>
               </div>
             ))}
           </div>
@@ -395,6 +407,9 @@ function Forum({ user }) {
           <div className="text-[10px] text-zinc-400 uppercase tracking-wider mt-3">
             {new Date(activeThread.created_at).toLocaleString()}
           </div>
+          <div className="mt-3 pt-3 border-t border-zinc-100">
+            <ReactionsBar targetType="thread" targetId={activeThread.id} />
+          </div>
         </div>
 
         <div className="space-y-3 mb-6" data-testid="forum-replies-list">
@@ -407,6 +422,9 @@ function Forum({ user }) {
                   {r.attachments.map((p) => <Attachment key={p} path={p} />)}
                 </div>
               )}
+              <div className="mt-2 pt-2 border-t border-zinc-100">
+                <ReactionsBar targetType="reply" targetId={r.id} />
+              </div>
             </div>
           ))}
         </div>
