@@ -1,7 +1,7 @@
 # Nyumba OS — Product Requirements Document (PRD)
 
 ## Original Problem Statement
-Build a comprehensive rental management system for Nairobi serving multiple roles (Landlord, Tenant, Caretaker, Prospect, Super Admin). Core features: property + unit management, M-Pesa STK Push for rent & bills, issue ticketing, public marketplace for vacant units, paid viewings (KES 200), Super Admin oversight panel with 3.5% commission tracking + approval workflows.
+Build a comprehensive rental management system for Nairobi serving multiple roles (Landlord, Tenant, Caretaker, Prospect, Security, Super Admin). Core features: property + unit management, M-Pesa STK Push for rent & bills, issue ticketing, public marketplace for vacant units, paid viewings (KES 200), digital leases, visitor QR passes, tenant Community hub, Yard Sale marketplace with monetization, AI Concierge chat, Super Admin god-mode oversight + 3.5% commission tracking + approvals.
 
 ## Tech Stack
 - Backend: FastAPI + Motor (MongoDB async)
@@ -11,106 +11,97 @@ Build a comprehensive rental management system for Nairobi serving multiple role
 - PDF: reportlab · QR: qrcode · AI: Claude Sonnet 4.5 via emergentintegrations (EMERGENT_LLM_KEY)
 
 ## Roles
-- Landlord, Tenant, Caretaker, Prospect, Super Admin
+Landlord, Tenant, Caretaker, Prospect, Security, Super Admin.
 
 ## Implemented Features
 
-### MVP
-- JWT Auth, Property/Unit/Tenant CRUD, monthly bill auto-gen, M-Pesa STK Push (demo), Issue ticketing, Public marketplace + paid viewings, Super Admin (3.5% commission, payouts, settings, approvals queue).
+### MVP + Phase 1-4 (Feb 2026) ✅
+- JWT auth, Property/Unit/Tenant CRUD, monthly bill auto-gen, M-Pesa STK (demo), Issues, Public marketplace + paid viewings (KES 200), Super Admin commission/payouts/approvals.
+- Phase 1: Property images, 7 categories, Swiper, AdminProperties.
+- Phase 2: Announcements + Forum w/ attachments.
+- Phase 3: Yard Sale free listings + KES 100 feature boost.
+- Phase 4: Digital leases (reportlab), Visitor QR passes, In-app notifications, AI Property Match.
 
-### Phase 1 — Property Foundations (Feb 2026) ✅
-- Local image uploads (≤5 per property) at `/api/uploads/properties/`
-- 7 property categories
-- Marketplace Swiper carousel (4×2/slide, autoplay 5s)
-- Admin `/admin/properties` (Edit/Delete/Feature with gold badge)
-- `mediaUrl()` helper + K8s-routable `/api/uploads` mount
+### Round 1+2 Fine-Tuning ✅
+- Security role added (visitor QR + issue resolution scoped to landlord).
+- Tenancy types — lease vs rental on properties + tenants.
+- Nairobi-warm palette UI globally.
+- Property categories restricted to Apartment / Own Compound.
+- Yard Sale KES 35 unlock-contact + KES 50 broadcast.
+- Bill notification mix-up fix (rent vs water bills).
 
-### Phase 2 — Community Hub (Feb 2026) ✅
-- **Announcements**: landlord→tenants (own property), admin→global. Pin, attach PDF/images (5MB max), audience notification fan-out.
-- **Per-property Forums**: tenants post + reply within own property; landlord/admin can pin/lock/delete; reply notifies thread author.
-- **Attachments**: PDF + image only, 5MB max, MIME validated.
-
-### Phase 3 — Yard Sale Marketplace (Feb 2026) ✅
-- Free listings (tenant/landlord/caretaker) with up to 5 images, 8 categories.
-- Filter chips, featured-first sorting.
-- **KES 100 "Feature for 7 days"** via M-Pesa STK Push (purpose `yard_sale_feature`). Auto-expires after 7 days.
-
-### Phase 4 — Smart Features (Feb 2026) ✅
-- **Digital Lease**: reportlab PDF generation, tenant e-sign with IP+timestamp, re-renders PDF post-signature.
-- **QR Visitor Passes**: tenant creates one-time pass (24h expiry); caretaker scans token to log entry; auto-expire stale; tenant notified on arrival.
-- **In-app Notifications**: bell icon (top-right, polls every 30s), unread badge, mark-read on click. Fired on: bill created/auto-gen, payment success, announcement, forum reply, lease pending/signed, visitor arrived, yard sale featured.
-- **AI Property Match** on `/marketplace`: Claude Sonnet 4.5 via Emergent LLM key. Falls back to "cheapest 3 matching filters" if LLM unavailable.
+### Round 3 Fine-Tuning ✅ (Feb 2026)
+- **Social reactions** (like/love/celebrate/support) on announcements, threads, replies — `social_router.py` `/api/social/{target_type}/{target_id}/react`.
+- **Announcement read receipts** — author + admin can see who viewed and when via `/api/social/announcement/{id}/views`. Auto-recorded when non-author opens Community page.
+- **Multi-turn AI Concierge chat** on Marketplace — `/api/ai/chat` persists per-session conversation, replays history for context, deep-links listing_id references as clickable chips. Falls back gracefully if LLM unavailable.
+- **Prospect QR entry pass** — auto-issued on viewing payment success (24h expiry, `is_prospect_pass=true`). Prospect sees prominent QR banner on Dashboard + full list at `/visitors`. Security/caretaker scans on arrival.
+- **Admin God-Mode Moderation** — new `/api/admin/moderation/*` router + `/admin/moderation` UI page with tabs for Yard Sale, Announcements, Forum, Viewings, Visitor Passes, Issues, Leases, AI Conversations. Search + delete (with cascade for reactions/views/replies) from one place. Summary grid shows live counts.
 
 ## Architecture
-
 ```
 /app/
 ├── backend/
 │   ├── routers/
-│   │   ├── auth_router.py, bills_router.py, issues_router.py, payments_router.py,
-│   │   ├── properties_router.py, users_router.py, viewings_router.py,
-│   │   ├── admin_router.py, oversight_router.py,
-│   │   ├── community_router.py    ← Phase 2
-│   │   ├── yardsale_router.py     ← Phase 3
-│   │   ├── leases_router.py       ← Phase 4 (PDF lease)
-│   │   ├── visitors_router.py     ← Phase 4 (QR)
-│   │   ├── notifications_router.py← Phase 4
-│   │   └── ai_router.py           ← Phase 4 (Claude Sonnet 4.5)
-│   ├── tests/test_phase1_properties.py (19), test_phase234.py (30)
-│   ├── notifications.py (helpers)
-│   ├── auth.py, db.py, models.py, mpesa.py, server.py
+│   │   ├── auth_router, bills_router, issues_router, payments_router,
+│   │   ├── properties_router, users_router, viewings_router,
+│   │   ├── admin_router, oversight_router,
+│   │   ├── community_router, yardsale_router,
+│   │   ├── leases_router, visitors_router,
+│   │   ├── notifications_router, ai_router (chat + recommend),
+│   │   ├── social_router (reactions + view receipts), ← Round 3
+│   │   └── admin_moderation_router (god-mode) ← Round 3
+│   ├── tests/test_phase1, test_phase234, test_round2, test_round3
+│   ├── notifications.py, auth, db, models, mpesa, server
 │   └── uploads/{properties,community,yardsale,leases}/
 ├── frontend/src/
-│   ├── pages/
-│   │   ├── Marketplace.jsx (Swiper + AI Match button)
-│   │   ├── MarketplaceDetail.jsx, Properties.jsx, Tenants.jsx, ...
-│   │   ├── Community.jsx       ← P2
-│   │   ├── YardSale.jsx        ← P3
-│   │   ├── Leases.jsx          ← P4
-│   │   ├── Visitors.jsx        ← P4
-│   │   └── admin/AdminProperties.jsx, Admin*.jsx
-│   ├── components/
-│   │   ├── AppShell.jsx (sidebar updated, top-right bell)
-│   │   ├── NotificationBell.jsx ← P4
-│   │   └── AiRecommendButton.jsx ← P4
-│   └── lib/api.js (mediaUrl, formatKES, formatApiError)
-├── memory/PRD.md, test_credentials.md
-├── test_reports/iteration_1..7.json
-└── TESTING_SCENARIOS_PHASE_234.md
+│   ├── pages/Dashboard (prospect QR banner ← Round 3), Marketplace + AiChatButton,
+│   │   Community (ReactionsBar + ViewReceipts ← Round 3), Visitors, ...
+│   │   admin/AdminModeration ← Round 3
+│   ├── components/AppShell (Moderation tab), AiChatButton ← Round 3,
+│   │   ReactionsBar ← Round 3, ViewReceipts ← Round 3,
+│   │   NotificationBell, CardImageCarousel, ErrorBoundary
+│   └── lib/api, auth
+└── memory/PRD.md, test_credentials.md, test_reports/iteration_{1..10}.json
 ```
 
-## Key API Endpoints (Phase 2/3/4)
-- Announcements: `POST/GET/DELETE /api/announcements`, `PATCH /api/announcements/{id}/pin`
-- Forum: `POST/GET /api/forum/threads`, `GET /api/forum/threads/{id}`, `POST /api/forum/threads/{id}/replies`, `PATCH /api/forum/threads/{id}/moderate`, `DELETE /api/forum/threads/{id}`
-- Yard sale: `POST/GET/PATCH/DELETE /api/yard-sale/listings`, `POST /api/yard-sale/listings/{id}/feature`
-- Leases: `POST/GET /api/leases`, `GET /api/leases/{id}`, `POST /api/leases/{id}/sign`, `DELETE /api/leases/{id}`
-- Visitor passes: `POST/GET /api/visitor-passes`, `POST /api/visitor-passes/scan/{token}`, `DELETE /api/visitor-passes/{id}`
-- Notifications: `GET /api/notifications`, `PATCH /api/notifications/{id}/read`, `POST /api/notifications/mark-all-read`
-- AI: `POST /api/ai/recommend-properties`
+## Key API Endpoints (Round 3 additions)
+- `POST /api/social/{target_type}/{target_id}/react?reaction=like|love|celebrate|support` — toggle
+- `GET /api/social/{target_type}/{target_id}/reactions`
+- `POST /api/social/announcement/{id}/view`
+- `GET /api/social/announcement/{id}/views` (author + admin)
+- `POST /api/ai/chat` (multi-turn, session_id persistence)
+- `GET /api/ai/conversations`, `GET /api/ai/conversations/{sid}`
+- `GET /api/admin/ai-conversations` (admin)
+- `GET /api/admin/moderation/summary` — live counts
+- `GET/DELETE /api/admin/moderation/{yard-sale|announcements|forum/threads|viewings|visitor-passes|issues|leases|ai-conversations}/{id?}`
+- `GET /api/visitor-passes` — now returns prospect's own passes with QR data URL
 
-## DB Collections (Phase 2/3/4)
-`announcements`, `forum_threads`, `forum_replies`, `yard_sale`, `leases`, `visitor_passes`, `notifications`
+## DB Collections (Round 3 additions)
+`reactions`, `announcement_views`, `ai_conversations`.
+
+## Demo Mode Notes
+- M-Pesa STK auto-confirms after ~4s
+- AI fallback to deterministic answer if EMERGENT_LLM_KEY missing or LLM errors
+- Notifications poll every 30s
+
+## Test Coverage
+- Backend: test_phase1_properties (19) + test_phase234 (30) + test_round2 + test_round3 (17) — all passing.
+- Frontend: smoke screenshots through testing_agent; multi-iteration regression `/app/test_reports/iteration_*.json`.
 
 ## Roadmap (Backlog)
 
 ### P5 — Production Hardening
 - Real M-Pesa Daraja credentials
-- Image size/MIME advanced validation, virus scan
+- Email/SMS notification channel (Resend/Twilio)
 - Async file I/O via aiofiles
 - Rate limiting on public endpoints
-- DRY shared `uploads.py` for attachment helpers (community + yardsale)
-- Move lease PDF template to `backend/pdf/lease_template.py`
-- Email/SMS notifications channel (Resend / Twilio) — currently in-app only
+- Cleanup orphaned attachment files on cascade delete
+- Move lease PDF template to dedicated module
 
 ### P6 — Engagement Boosters (suggestions)
-- Paid "Featured Property" for landlords on marketplace (KES 500/mo) — natural extension of yard sale boost
+- Paid "Featured Property" for landlords on marketplace
 - Tenant referral credits
-- Caretaker mobile-first scan UI with native camera QR decoding
-
-## Demo Mode Notes
-- M-Pesa STK auto-confirms after ~4s (no Daraja keys)
-- AI fallback to "lowest rent matching" if EMERGENT_LLM_KEY missing or LLM error
-- Notifications poll every 30s (no websockets yet)
+- Mobile-first native camera QR scan for caretaker
 
 ## Last Updated
-Feb 2026 — Phases 1+2+3+4 complete. Backend 49/49 tests pass. Manual test scenarios in `/app/TESTING_SCENARIOS_PHASE_234.md`.
+Feb 2026 — Round 3 complete (social reactions, view receipts, AI chat, prospect QR pass, admin god-mode moderation). Backend tests 17/17 + previous 49/49 still passing.

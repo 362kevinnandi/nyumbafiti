@@ -5,6 +5,13 @@ import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/AppShell";
 import { Home, Users, AlertTriangle, Wallet, Wrench, CheckCircle2, QrCode, ShieldCheck } from "lucide-react";
 
+function formatPassTime(t) {
+  if (!t) return "—";
+  const d = new Date(t);
+  if (!isNaN(d.getTime())) return d.toLocaleString();
+  return String(t);
+}
+
 function StatCard({ label, value, sub, accent, testId, icon: Icon }) {
   return (
     <div
@@ -86,7 +93,7 @@ export default function DashboardPage() {
               </p>
               <div className="flex flex-wrap gap-2 text-xs text-zinc-600">
                 <span className="badge-status bg-emerald-50 text-emerald-800 border border-emerald-200">VALID</span>
-                <span>Expected: <span className="font-mono-num font-semibold">{new Date(prospectPasses[0].expected_time).toLocaleString()}</span></span>
+                <span>Expected: <span className="font-mono-num font-semibold">{formatPassTime(prospectPasses[0].expected_time)}</span></span>
               </div>
               <div className="mt-4 flex gap-2">
                 <Link to="/visitors">

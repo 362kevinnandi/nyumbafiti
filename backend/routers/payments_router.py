@@ -84,6 +84,13 @@ async def _process_callback_payload(payload: dict):
                 prospect = await db["users"].find_one({"id": v["prospect_id"]})
                 if prospect:
                     expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+                    # Combine viewing date + time into a single ISO datetime for the pass
+                    s_date = v.get("scheduled_date") or datetime.now(timezone.utc).date().isoformat()
+                    s_time = v.get("scheduled_time") or "10:00"
+                    try:
+                        expected_dt = datetime.fromisoformat(f"{s_date}T{s_time}:00").replace(tzinfo=timezone.utc).isoformat()
+                    except Exception:
+                        expected_dt = now_iso()
                     pass_doc = {
                         "id": new_id(),
                         "token": secrets.token_urlsafe(20),
@@ -94,7 +101,7 @@ async def _process_callback_payload(payload: dict):
                         "unit_id": v.get("unit_id"),
                         "visitor_name": prospect.get("full_name", "Prospect"),
                         "visitor_phone": prospect.get("phone", ""),
-                        "expected_time": v.get("scheduled_time", now_iso()),
+                        "expected_time": expected_dt,
                         "notes": f"Auto-issued for viewing #{v['id'][:8]}. Bring signed-up ID for security.",
                         "status": "active",
                         "used_at": None,

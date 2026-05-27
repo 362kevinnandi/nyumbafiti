@@ -189,6 +189,11 @@ function ModerationList({ endpoint, tabValue, onChange }) {
 
 function RowCard({ item, tabValue, onDelete }) {
   const id = item.id || item.session_id;
+  const fmtDate = (t) => {
+    if (!t) return "—";
+    const d = new Date(t);
+    return isNaN(d.getTime()) ? String(t) : d.toLocaleString();
+  };
   const renderBody = () => {
     switch (tabValue) {
       case "yard-sale":
@@ -227,7 +232,7 @@ function RowCard({ item, tabValue, onDelete }) {
           <>
             <div className="font-display font-bold">{item.visitor_name} {item.is_prospect_pass && <span className="badge-status bg-amber-50 text-amber-800 ml-1">prospect</span>}</div>
             <div className="text-xs text-zinc-500">host={item.tenant_name} · landlord={item.landlord_id?.slice(0,8)} · status={item.status}</div>
-            <div className="text-xs text-zinc-500">expected {new Date(item.expected_time).toLocaleString()} · expires {new Date(item.expires_at).toLocaleString()}</div>
+            <div className="text-xs text-zinc-500">expected {fmtDate(item.expected_time)} · expires {fmtDate(item.expires_at)}</div>
           </>
         );
       case "issues":
