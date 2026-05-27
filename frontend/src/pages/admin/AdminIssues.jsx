@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, formatApiError } from "@/lib/api";
 import { PageHeader } from "@/components/AppShell";
+import ExportMenu from "@/components/ExportMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -29,7 +30,7 @@ export default function AdminIssuesPage() {
 
   return (
     <div data-testid="admin-issues-page">
-      <PageHeader overline="Super Admin" title="All Platform Issues" />
+      <PageHeader overline="Super Admin" title="All Platform Issues" action={<ExportMenu resource="issues" testIdPrefix="issues-export" />} />
 
       <div className="mb-6 bg-zinc-50 border border-zinc-200 rounded-md p-4 flex items-start gap-3">
         <ShieldCheck className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />

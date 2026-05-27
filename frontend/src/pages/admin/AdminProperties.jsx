@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import { Pencil, Trash2, Star, StarOff, MapPin, Building2, Search } from "lucide-react";
 import CardImageCarousel from "@/components/CardImageCarousel";
+import ExportMenu from "@/components/ExportMenu";
 
 const CATEGORIES = [
   { value: "apartment", label: "Apartment" },
@@ -121,15 +122,18 @@ export default function AdminPropertiesPage() {
         overline="Oversight"
         title="All Properties"
         action={
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <Input
-              placeholder="Search by name, address, landlord..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-10 pl-9 w-80"
-              data-testid="admin-properties-search"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <Input
+                placeholder="Search by name, address, landlord..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-10 pl-9 w-80"
+                data-testid="admin-properties-search"
+              />
+            </div>
+            <ExportMenu resource="properties" testIdPrefix="properties-export" />
           </div>
         }
       />

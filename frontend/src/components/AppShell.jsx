@@ -76,7 +76,17 @@ export default function AppShell() {
     navigate("/login");
     return null;
   }
-  const nav = NAV_BY_ROLE[user.role] || [];
+  // Tenant sidebar label adapts to their tenancy type (lease vs rental)
+  const navRaw = NAV_BY_ROLE[user.role] || [];
+  const nav = navRaw.map((item) => {
+    if (user.role === "tenant" && item.to === "/leases") {
+      return {
+        ...item,
+        label: user.tenancy_type === "lease" ? "Lease Agreement" : "Rental Agreement",
+      };
+    }
+    return item;
+  });
 
   return (
     <div className="min-h-screen flex bg-warm">

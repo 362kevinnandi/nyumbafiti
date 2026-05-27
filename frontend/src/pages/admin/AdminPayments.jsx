@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, formatApiError, formatKES } from "@/lib/api";
 import { PageHeader } from "@/components/AppShell";
+import ExportMenu from "@/components/ExportMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +31,7 @@ export default function AdminPaymentsPage() {
 
   return (
     <div data-testid="admin-payments-page">
-      <PageHeader overline="Super Admin" title="All Platform Payments" />
+      <PageHeader overline="Super Admin" title="All Platform Payments" action={<ExportMenu resource="payments" testIdPrefix="payments-export" />} />
       {loading ? <div className="text-zinc-500">Loading...</div> : (
         <div className="bg-white border border-zinc-200 rounded-md overflow-x-auto" data-testid="admin-payments-table">
           <table className="w-full text-sm min-w-[800px]">

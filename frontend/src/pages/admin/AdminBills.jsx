@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, formatKES } from "@/lib/api";
 import { PageHeader } from "@/components/AppShell";
+import ExportMenu from "@/components/ExportMenu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const STATUS_STYLES = {
@@ -76,7 +77,7 @@ export default function AdminBillsPage() {
 
   return (
     <div data-testid="admin-bills-page">
-      <PageHeader overline="Super Admin" title="All Platform Bills" />
+      <PageHeader overline="Super Admin" title="All Platform Bills" action={<ExportMenu resource="bills" testIdPrefix="bills-export" />} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white border border-zinc-200 rounded-md p-5">

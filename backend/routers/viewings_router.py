@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from auth import hash_password, require_role
 from db import get_db
-from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, stk_push
+from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, should_use_demo_fallback, stk_push
 from models import VIEWING_FEE_KES, Viewing, ViewingCreate, new_id, now_iso
 
 router = APIRouter(tags=["viewings"])
@@ -27,12 +27,15 @@ async def public_listings(
     city: Optional[str] = None,
     max_rent: Optional[float] = None,
     category: Optional[str] = None,
+    tenancy_type: Optional[str] = None,  # 'lease' or 'rental' — filter properties that support it
 ):
     """List all vacant units across all admin-approved properties (public)."""
     db = get_db()
     prop_filter: dict = {"approval_status": "approved"}
     if category:
         prop_filter["category"] = category
+    if tenancy_type in ("lease", "rental"):
+        prop_filter["tenancy_types"] = tenancy_type
     approved_props = await db["properties"].find(
         prop_filter, {"_id": 0, "id": 1}
     ).to_list(2000)
@@ -236,7 +239,7 @@ async def book_viewing(payload: ViewingCreate):
         },
     )
 
-    if resp.get("_demo") or is_demo_mode():
+    if should_use_demo_fallback(resp):
         asyncio.create_task(
             schedule_demo_callback(resp["CheckoutRequestID"], _process_callback_payload)
         )

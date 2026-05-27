@@ -183,6 +183,20 @@ export default function VisitorsPage() {
                 {p.qr_data_url && p.status === "active" && (
                   <img src={p.qr_data_url} alt="QR" className="w-32 h-32 mt-2 mx-auto bg-white border border-zinc-100" data-testid={`visitor-qr-${p.id}`} />
                 )}
+                {p.token && p.status === "active" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `${window.location.origin}/pass/${p.token}`;
+                      navigator.clipboard.writeText(url);
+                      toast.success("Pass link copied — send to your guest");
+                    }}
+                    className="mt-2 w-full text-xs h-7 border border-zinc-200 hover:border-zinc-400 rounded-md font-semibold"
+                    data-testid={`visitor-share-${p.id}`}
+                  >
+                    Copy share link for guest
+                  </button>
+                )}
                 {p.used_at && (
                   <div className="text-xs text-emerald-700 mt-3 pt-3 border-t border-zinc-100">
                     Entry logged at {new Date(p.used_at).toLocaleString()}

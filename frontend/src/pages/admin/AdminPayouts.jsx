@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, formatApiError, formatKES } from "@/lib/api";
 import { PageHeader } from "@/components/AppShell";
+import ExportMenu from "@/components/ExportMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +31,7 @@ export default function AdminPayoutsPage() {
 
   return (
     <div data-testid="admin-payouts-page">
-      <PageHeader overline="Super Admin" title="Landlord Payouts" />
+      <PageHeader overline="Super Admin" title="Landlord Payouts" action={<ExportMenu resource="payouts" testIdPrefix="payouts-export" />} />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="bg-zinc-100 rounded-md mb-6">
           <TabsTrigger value="owed" data-testid="tab-owed">Balances Owed ({owed.filter(r => r.balance_owed > 0).length})</TabsTrigger>

@@ -170,7 +170,8 @@ async def create_security(
         "password_hash": hash_password(payload.password),
         "landlord_id": user["id"],
         "unit_id": None,
-        "approval_status": "pending",
+        # Security personnel are managed by the landlord directly — no admin approval needed
+        "approval_status": "approved",
         "created_at": now_iso(),
     }
     try:

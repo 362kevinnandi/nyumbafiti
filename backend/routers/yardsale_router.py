@@ -14,7 +14,7 @@ from models import (
     YARD_SALE_CONTACT_UNLOCK_KES, YARD_SALE_BROADCAST_FEE_KES,
     YardSaleUpdate, new_id, now_iso,
 )
-from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, stk_push
+from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, should_use_demo_fallback, stk_push
 
 router = APIRouter(tags=["yard-sale"])
 
@@ -64,6 +64,9 @@ def _can_see_listing(listing: dict, viewer: dict) -> bool:
         return True
     if viewer.get("id") == listing.get("seller_id"):
         return True
+    # Listings awaiting contact-unlock payment are hidden from everyone except seller + admin
+    if listing.get("status") == "pending_payment":
+        return False
     if listing.get("scope") == "all":
         return True
     # property-scoped: must share landlord_id
@@ -82,6 +85,7 @@ async def create_listing(
     price: float = Form(...),
     category: str = Form("other"),
     scope: str = Form("property"),
+    phone_number: str = Form(...),  # required for the mandatory KES 35 contact-unlock STK push
     images: List[UploadFile] = File([]),
     user: dict = Depends(require_role("tenant", "landlord", "caretaker", "security")),
 ):
@@ -92,10 +96,15 @@ async def create_listing(
     if price < 0:
         raise HTTPException(400, "Price must be >= 0")
 
+    phone = normalize_phone(phone_number)
+    if not (phone.startswith("254") and len(phone) == 12 and phone.isdigit()):
+        raise HTTPException(400, "Phone must be a valid Kenyan number (e.g. 0712345678)")
+
     paths = await _save_images(images)
     db = get_db()
+    lid = new_id()
     doc = {
-        "id": new_id(),
+        "id": lid,
         "seller_id": user["id"],
         "seller_name": user["full_name"],
         "seller_phone": user.get("phone", ""),
@@ -110,20 +119,35 @@ async def create_listing(
         "featured": False,
         "featured_until": None,
         "contact_unlocked": False,
-        # New listings start property-scoped (free). Broadcast requires KES 50 STK.
+        # Listing starts as scope='property' and status='pending_payment' until KES 35 is paid.
         "scope": "property",
-        "status": "active",
+        # 'pending_payment' = not visible to anyone except seller+admin until STK confirms
+        "status": "pending_payment",
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
-    # If tenant, attach property via unit
+    # If tenant, attach property + unit context for buyers
     if user["role"] == "tenant" and user.get("unit_id"):
         unit = await db["units"].find_one({"id": user["unit_id"]})
         if unit:
             doc["property_id"] = unit["property_id"]
+            doc["unit_number"] = unit.get("unit_number", "")
+            prop = await db["properties"].find_one({"id": unit["property_id"]})
+            if prop:
+                doc["property_name"] = prop.get("name", "")
+                doc["property_address"] = prop.get("address", "")
     await db["yard_sale"].insert_one(doc)
+
+    # Initiate the KES 35 contact-unlock STK push immediately
+    stk_result = await _initiate_yardsale_payment(
+        lid, phone, YARD_SALE_CONTACT_UNLOCK_KES,
+        "yard_sale_contact", user, "POST", "Unlock & publish",
+    )
     doc.pop("_id", None)
-    return _mask_contact(doc, user)
+    return {
+        "listing": _mask_contact(doc, user),
+        "payment": stk_result,
+    }
 
 
 @router.get("/yard-sale/listings")
@@ -264,7 +288,7 @@ async def feature_listing(
         }},
     )
 
-    if resp.get("_demo") or is_demo_mode():
+    if should_use_demo_fallback(resp):
         asyncio.create_task(
             schedule_demo_callback(resp["CheckoutRequestID"], _process_callback_payload)
         )
@@ -350,7 +374,7 @@ async def _initiate_yardsale_payment(
         }},
     )
 
-    if resp.get("_demo") or is_demo_mode():
+    if should_use_demo_fallback(resp):
         asyncio.create_task(
             schedule_demo_callback(resp["CheckoutRequestID"], _process_callback_payload)
         )

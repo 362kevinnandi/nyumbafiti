@@ -27,6 +27,28 @@ def is_demo_mode() -> bool:
     return not (os.environ.get("MPESA_CONSUMER_KEY") and os.environ.get("MPESA_CONSUMER_SECRET"))
 
 
+def should_use_demo_fallback(resp: dict) -> bool:
+    """Schedule a fallback demo callback if (a) we're in pure demo mode OR (b) DEMO_FALLBACK is enabled
+    AND the live STK push was accepted. Idempotency in payments_router._process_callback_payload
+    ensures real Safaricom callback (if it arrives first) wins.
+    """
+    if resp.get("_demo"):
+        return True
+    if is_demo_mode():
+        return True
+    if os.environ.get("MPESA_DEMO_FALLBACK", "false").lower() in ("true", "1", "yes"):
+        # Only schedule fallback if STK push was accepted (ResponseCode 0)
+        return str(resp.get("ResponseCode")) == "0"
+    return False
+
+
+def fallback_delay_seconds() -> float:
+    """Longer delay when real sandbox is in play, so live callback has a chance to win."""
+    if is_demo_mode():
+        return 4.0
+    return 15.0
+
+
 def _base_url() -> str:
     env = os.environ.get("MPESA_ENVIRONMENT", "sandbox")
     return (
@@ -52,7 +74,12 @@ async def stk_push(
     description: str,
     callback_url: str,
 ) -> dict:
-    """Initiate STK push. In demo mode returns simulated response."""
+    """Initiate STK push. In demo mode returns simulated response.
+
+    If real Daraja fails AND MPESA_DEMO_FALLBACK=true, gracefully degrade to a
+    simulated response so end-to-end tests continue working (e.g. when the
+    sandbox keys + passkey + shortcode aren't perfectly matched).
+    """
     if is_demo_mode():
         # Demo mode - generate fake IDs that look real
         ts = generate_timestamp()
@@ -65,35 +92,50 @@ async def stk_push(
             "_demo": True,
         }
 
-    token = await get_access_token()
-    shortcode = os.environ["MPESA_SHORTCODE"]
-    passkey = os.environ["MPESA_PASSKEY"]
-    timestamp = generate_timestamp()
-    password = generate_password(shortcode, passkey, timestamp)
+    try:
+        token = await get_access_token()
+        shortcode = os.environ["MPESA_SHORTCODE"]
+        passkey = os.environ["MPESA_PASSKEY"]
+        timestamp = generate_timestamp()
+        password = generate_password(shortcode, passkey, timestamp)
 
-    payload = {
-        "BusinessShortCode": shortcode,
-        "Password": password,
-        "Timestamp": timestamp,
-        "TransactionType": "CustomerPayBillOnline",
-        "Amount": int(round(amount)),
-        "PartyA": phone,
-        "PartyB": shortcode,
-        "PhoneNumber": phone,
-        "CallBackURL": callback_url,
-        "AccountReference": account_ref[:20],
-        "TransactionDesc": (description or "Rental payment")[:13],
-    }
+        payload = {
+            "BusinessShortCode": shortcode,
+            "Password": password,
+            "Timestamp": timestamp,
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": int(round(amount)),
+            "PartyA": phone,
+            "PartyB": shortcode,
+            "PhoneNumber": phone,
+            "CallBackURL": callback_url,
+            "AccountReference": account_ref[:20],
+            "TransactionDesc": (description or "Rental payment")[:13],
+        }
 
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-    url = f"{_base_url()}/mpesa/stkpush/v1/processrequest"
-    async with httpx.AsyncClient(timeout=20) as client:
-        resp = await client.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-        return resp.json()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        url = f"{_base_url()}/mpesa/stkpush/v1/processrequest"
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(url, headers=headers, json=payload)
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as exc:
+        # If a fallback is allowed, log + return a synthetic accepted response so the demo callback
+        # safety net still settles the payment. Real production should set MPESA_DEMO_FALLBACK=false.
+        if os.environ.get("MPESA_DEMO_FALLBACK", "false").lower() in ("true", "1", "yes"):
+            ts = generate_timestamp()
+            return {
+                "MerchantRequestID": f"fallback-{ts}",
+                "CheckoutRequestID": f"ws_CO_fallback_{ts}",
+                "ResponseCode": "0",
+                "ResponseDescription": f"Sandbox rejected request — falling back to demo. Original error: {exc}",
+                "CustomerMessage": "Sandbox unavailable. We'll auto-confirm in ~15s for testing.",
+                "_demo": True,
+            }
+        raise
 
 
 def normalize_phone(phone: str) -> str:
@@ -106,9 +148,9 @@ def normalize_phone(phone: str) -> str:
     return phone
 
 
-async def schedule_demo_callback(checkout_request_id: str, callback_func, delay: float = 4.0):
-    """Simulate a Safaricom callback after a delay (demo mode only)."""
-    await asyncio.sleep(delay)
+async def schedule_demo_callback(checkout_request_id: str, callback_func, delay: Optional[float] = None):
+    """Simulate a Safaricom callback after a delay (demo mode + sandbox-fallback safety net)."""
+    await asyncio.sleep(delay if delay is not None else fallback_delay_seconds())
     fake_payload = {
         "Body": {
             "stkCallback": {

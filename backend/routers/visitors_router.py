@@ -101,6 +101,43 @@ async def list_passes(user: dict = Depends(get_current_user)):
     return items
 
 
+@router.get("/public/pass/{token}")
+async def public_pass_view(token: str):
+    """Public viewer for a visitor pass token. Anyone with the token (guest, security, tenant) sees:
+    - QR code (regenerated on the fly)
+    - Visitor name, host name, expected time, status
+    - Property name & address (helpful for the guest to find the gate)
+    No personal data of unrelated users is exposed.
+    """
+    db = get_db()
+    # Lazy expire
+    await db["visitor_passes"].update_many(
+        {"status": "active", "expires_at": {"$lt": now_iso()}},
+        {"$set": {"status": "expired"}},
+    )
+    p = await db["visitor_passes"].find_one({"token": token}, {"_id": 0})
+    if not p:
+        raise HTTPException(404, "Pass not found")
+    prop = await db["properties"].find_one({"id": p.get("property_id")}, {"_id": 0, "name": 1, "address": 1})
+    return {
+        "id": p["id"],
+        "token": p["token"],
+        "visitor_name": p["visitor_name"],
+        "visitor_phone": p.get("visitor_phone", ""),
+        "host_name": p.get("tenant_name", ""),
+        "expected_time": p.get("expected_time"),
+        "expires_at": p.get("expires_at"),
+        "status": p["status"],
+        "used_at": p.get("used_at"),
+        "used_by_caretaker_name": p.get("used_by_caretaker_name"),
+        "property_name": prop.get("name") if prop else "",
+        "property_address": prop.get("address") if prop else "",
+        "is_prospect_pass": bool(p.get("is_prospect_pass")),
+        "qr_data_url": _qr_data_url(p["token"]),
+        "notes": p.get("notes", ""),
+    }
+
+
 @router.post("/visitor-passes/scan/{token}")
 async def scan_pass(token: str, user: dict = Depends(require_role("caretaker", "security", "admin", "landlord"))):
     db = get_db()

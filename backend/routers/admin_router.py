@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from auth import require_role
 from db import get_db
-from models import DEFAULT_COMMISSION_RATE, now_iso
+from models import DEFAULT_COMMISSION_RATE, new_id, now_iso
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -193,6 +193,97 @@ async def suspend_user(
         {"$set": {"suspended": payload.suspended, "updated_at": now_iso()}},
     )
     return {"ok": True, "suspended": payload.suspended}
+
+
+# ============ Admin password / email reset ============
+
+class UserResetCredentials(BaseModel):
+    new_password: str | None = None
+    new_email: str | None = None
+    reason: str = ""
+
+
+def _generate_password(length: int = 10) -> str:
+    import secrets
+    import string
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+@router.post("/users/{user_id}/reset-credentials")
+async def reset_credentials(
+    user_id: str,
+    payload: UserResetCredentials,
+    admin: dict = Depends(require_role("admin")),
+):
+    """Super-admin can directly reset a user's email and/or password.
+    If new_password is omitted, a random one is generated and returned (shown once).
+    """
+    from auth import hash_password
+    from pymongo.errors import DuplicateKeyError
+
+    db = get_db()
+    if user_id == admin["id"]:
+        raise HTTPException(400, "Use the platform settings to change your own credentials")
+    user = await db["users"].find_one({"id": user_id})
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    updates: dict = {"updated_at": now_iso()}
+    plaintext_pw = None
+    if payload.new_email and payload.new_email.strip():
+        new_email = payload.new_email.strip().lower()
+        existing = await db["users"].find_one({"email": new_email, "id": {"$ne": user_id}})
+        if existing:
+            raise HTTPException(400, "Another user already uses that email")
+        updates["email"] = new_email
+
+    if payload.new_password is not None and payload.new_password.strip():
+        if len(payload.new_password) < 6:
+            raise HTTPException(400, "Password must be at least 6 characters")
+        plaintext_pw = payload.new_password
+        updates["password_hash"] = hash_password(plaintext_pw)
+    elif payload.new_password == "" or payload.new_password is None:
+        # Generate one if either explicitly empty string OR completely omitted but new_email also omitted
+        if not payload.new_email:
+            plaintext_pw = _generate_password()
+            updates["password_hash"] = hash_password(plaintext_pw)
+
+    if len(updates) == 1:  # only updated_at
+        raise HTTPException(400, "Provide new_email and/or new_password")
+
+    try:
+        await db["users"].update_one({"id": user_id}, {"$set": updates})
+    except DuplicateKeyError:
+        raise HTTPException(400, "Email collision")
+
+    # Audit log
+    await db["admin_audit_log"].insert_one({
+        "id": new_id() if "new_id" in dir() else __import__("uuid").uuid4().hex,
+        "actor_id": admin["id"],
+        "actor_name": admin["full_name"],
+        "action": "reset_credentials",
+        "target_user_id": user_id,
+        "target_user_email": user.get("email"),
+        "new_email": updates.get("email"),
+        "password_reset": bool(plaintext_pw),
+        "reason": payload.reason,
+        "created_at": now_iso(),
+    })
+
+    return {
+        "ok": True,
+        "user_id": user_id,
+        "new_email": updates.get("email", user.get("email")),
+        "new_password": plaintext_pw,  # only returned this once
+    }
+
+
+@router.get("/audit-log")
+async def list_audit_log(admin: dict = Depends(require_role("admin"))):
+    db = get_db()
+    rows = await db["admin_audit_log"].find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return rows
 
 
 # ============ Payments view ============

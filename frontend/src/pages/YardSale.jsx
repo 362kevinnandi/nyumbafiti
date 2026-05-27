@@ -34,8 +34,10 @@ export default function YardSalePage() {
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("all");
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", price: "", category: "other" });
+  const [form, setForm] = useState({ title: "", description: "", price: "", category: "other", phone_number: user?.phone || "" });
   const [images, setImages] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState(null); // { listing_id, payment_id }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,24 +50,50 @@ export default function YardSalePage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Poll the seller's pending listing once submitted, so we know when STK confirms
+  useEffect(() => {
+    if (!pendingPayment) return;
+    const interval = setInterval(async () => {
+      try {
+        const r = await api.get(`/yard-sale/listings/${pendingPayment.listing_id}`);
+        if (r.data?.status === "active" && r.data?.contact_unlocked) {
+          clearInterval(interval);
+          toast.success("Payment confirmed — your listing is now live with contact unlocked!");
+          setPendingPayment(null);
+          setOpen(false);
+          setForm({ title: "", description: "", price: "", category: "other", phone_number: user?.phone || "" });
+          setImages([]);
+          load();
+        }
+      } catch { /* listing not visible yet */ }
+    }, 2500);
+    const stop = setTimeout(() => clearInterval(interval), 90000);
+    return () => { clearInterval(interval); clearTimeout(stop); };
+  }, [pendingPayment, load, user?.phone]);
+
   const create = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const fd = new FormData();
       fd.append("title", form.title);
       fd.append("description", form.description);
       fd.append("price", form.price);
       fd.append("category", form.category);
-      fd.append("scope", "property"); // free; upgrade with paid broadcast
+      fd.append("scope", "property");
+      fd.append("phone_number", form.phone_number);
       images.forEach((f) => fd.append("images", f));
-      await api.post("/yard-sale/listings", fd, { headers: { "Content-Type": "multipart/form-data" } });
-      toast.success("Listing posted to your property. Open it to add boosts.");
-      setOpen(false);
-      setForm({ title: "", description: "", price: "", category: "other" });
-      setImages([]);
-      load();
+      const r = await api.post("/yard-sale/listings", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      toast.success("STK push sent — enter your M-Pesa PIN to publish the listing.");
+      setPendingPayment({
+        listing_id: r.data.listing?.id,
+        payment_id: r.data.payment?.payment_id,
+      });
     } catch (err) {
       toast.error(formatApiError(err, "Failed"));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -100,10 +128,18 @@ export default function YardSalePage() {
               <DialogHeader>
                 <DialogTitle className="font-display font-black text-2xl">Sell an item</DialogTitle>
                 <DialogDescription>
-                  Free listing within your property. You can pay to unlock contact (KES 35),
-                  broadcast platform-wide (KES 50) or feature it (KES 100) from the listing page.
+                  Pay KES 35 once to publish + unlock your contact so buyers can reach you.
                 </DialogDescription>
               </DialogHeader>
+              {pendingPayment ? (
+                <div className="space-y-4 py-2" data-testid="yard-sale-pending">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-md p-4 text-center">
+                    <div className="font-display font-bold text-lg mb-1">Awaiting M-Pesa confirmation</div>
+                    <div className="text-sm text-zinc-700">Enter your PIN on the prompt that was just sent to your phone. We'll publish the listing as soon as Safaricom confirms.</div>
+                  </div>
+                  <Button type="button" variant="outline" onClick={() => { setPendingPayment(null); setOpen(false); }} className="w-full" data-testid="yard-sale-pending-close">Close</Button>
+                </div>
+              ) : (
               <form onSubmit={create} className="space-y-4" data-testid="yard-sale-form">
                 <div>
                   <Label className="overline">Title</Label>
@@ -126,13 +162,27 @@ export default function YardSalePage() {
                   </div>
                 </div>
                 <div>
+                  <Label className="overline">M-Pesa Phone</Label>
+                  <Input required value={form.phone_number} onChange={(e) => setForm({ ...form, phone_number: e.target.value })} className="mt-1 font-mono-num" placeholder="0712345678" data-testid="yard-sale-phone" />
+                </div>
+                <div>
                   <Label className="overline">Photos (up to 5)</Label>
                   <Input type="file" accept="image/*" multiple onChange={(e) => setImages(Array.from(e.target.files || []).slice(0, 5))} className="mt-1" data-testid="yard-sale-images" />
                 </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-xs text-amber-900" data-testid="yard-sale-fee-info">
+                  <div className="font-semibold mb-1">KES 35 unlocks your listing</div>
+                  <p className="leading-relaxed">
+                    Once paid, buyers will see your <span className="font-semibold">name, phone, email, property + unit number</span>.
+                    Without paying, the listing stays hidden. Optional: pay KES 50 later to broadcast to all NyumbaOS tenants (adds your property address), or KES 100 to feature for 7 days.
+                  </p>
+                </div>
                 <DialogFooter>
-                  <Button type="submit" className="bg-zinc-950 hover:bg-zinc-800" data-testid="yard-sale-submit">Post Listing</Button>
+                  <Button type="submit" disabled={submitting} className="bg-mpesa hover:bg-mpesa text-white w-full h-11" data-testid="yard-sale-submit">
+                    {submitting ? "Sending STK push..." : "Pay KES 35 & Publish"}
+                  </Button>
                 </DialogFooter>
               </form>
+              )}
             </DialogContent>
           </Dialog>
         )}

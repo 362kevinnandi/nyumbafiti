@@ -32,6 +32,7 @@ from routers.visitors_router import router as visitors_router  # noqa: E402
 from routers.ai_router import router as ai_router  # noqa: E402
 from routers.social_router import router as social_router  # noqa: E402
 from routers.admin_moderation_router import router as admin_moderation_router  # noqa: E402
+from routers.admin_exports_router import router as admin_exports_router  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -287,6 +288,7 @@ api_router.include_router(visitors_router)
 api_router.include_router(ai_router)
 api_router.include_router(social_router)
 api_router.include_router(admin_moderation_router)
+api_router.include_router(admin_exports_router)
 
 app.include_router(api_router)
 

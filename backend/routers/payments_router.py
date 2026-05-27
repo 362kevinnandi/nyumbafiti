@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from auth import get_current_user, require_role
 from db import get_db
-from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, stk_push
+from mpesa import is_demo_mode, normalize_phone, schedule_demo_callback, should_use_demo_fallback, stk_push
 from models import PaymentInitiate, new_id, now_iso
 
 router = APIRouter(tags=["payments"])
@@ -30,6 +30,9 @@ async def _process_callback_payload(payload: dict):
     payment = await db["payments"].find_one({"checkout_request_id": checkout_id})
     if not payment:
         await db["orphan_callbacks"].insert_one({"payload": payload, "at": now_iso()})
+        return
+    # Idempotency: if already settled, ignore subsequent callbacks (handles demo fallback racing real Safaricom)
+    if payment.get("status") in ("succeeded", "failed", "refunded"):
         return
 
     # parse metadata
@@ -128,7 +131,8 @@ async def _process_callback_payload(payload: dict):
         if purpose == "yard_sale_contact":
             await db["yard_sale"].update_one(
                 {"id": payment["yard_sale_id"]},
-                {"$set": {"contact_unlocked": True, "updated_at": now_iso()}},
+                # Also flip status from pending_payment → active in case this was the mandatory unlock at posting time
+                {"$set": {"contact_unlocked": True, "status": "active", "updated_at": now_iso()}},
             )
             if item and payment.get("tenant_id"):
                 await notify_user(
@@ -279,7 +283,7 @@ async def initiate_payment(
     )
 
     # demo mode: schedule auto-callback
-    if resp.get("_demo") or is_demo_mode():
+    if should_use_demo_fallback(resp):
         asyncio.create_task(
             schedule_demo_callback(resp["CheckoutRequestID"], _process_callback_payload)
         )

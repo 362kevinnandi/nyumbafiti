@@ -32,6 +32,12 @@ const SUB_TYPE_FILTERS = [
   { value: "5br_plus", label: "5+ BR" },
 ];
 
+const TENANCY_FILTERS = [
+  { value: "all", label: "Any" },
+  { value: "rental", label: "For Rental" },
+  { value: "lease", label: "For Lease" },
+];
+
 const subTypeLabel = (v) => SUB_TYPE_FILTERS.find((c) => c.value === v)?.label || "";
 const typeLabel = (v) => TYPE_FILTERS.find((c) => c.value === v)?.label || "Apartment";
 
@@ -51,6 +57,7 @@ export default function MarketplacePage() {
   const [maxRent, setMaxRent] = useState("");
   const [category, setCategory] = useState("all");
   const [subType, setSubType] = useState("all");
+  const [tenancy, setTenancy] = useState("all");
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -59,10 +66,11 @@ export default function MarketplacePage() {
     const params = {};
     if (maxRent) params.max_rent = maxRent;
     if (category && category !== "all") params.category = category;
+    if (tenancy && tenancy !== "all") params.tenancy_type = tenancy;
     const r = await api.get("/public/listings", { params });
     setListings(r.data);
     setLoading(false);
-  }, [maxRent, category]);
+  }, [maxRent, category, tenancy]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -195,6 +203,26 @@ export default function MarketplacePage() {
                 );
               })}
             </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="overline text-zinc-500 self-center mr-2">Tenancy</span>
+              {TENANCY_FILTERS.map((c) => {
+                const active = tenancy === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    onClick={() => setTenancy(c.value)}
+                    className={`px-4 h-8 rounded-full border text-xs font-semibold transition-all ${
+                      active
+                        ? "bg-amber-500 text-zinc-950 border-amber-500"
+                        : "bg-white text-zinc-700 border-zinc-300 hover:border-amber-400"
+                    }`}
+                    data-testid={`tenancy-chip-${c.value}`}
+                  >
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
@@ -303,6 +331,11 @@ function ListingCard({ l }) {
               {subTypeLabel(l.sub_type || l.property?.sub_type)}
             </span>
           )}
+          {(l.tenancy_types || []).map((tt) => (
+            <span key={tt} className={`px-2 py-0.5 rounded-sm overline text-[10px] backdrop-blur ${tt === "lease" ? "bg-amber-400 text-zinc-950" : "bg-emerald-500/90 text-white"}`} data-testid={`tenancy-badge-${l.id}-${tt}`}>
+              {tt === "lease" ? "FOR LEASE" : "FOR RENT"}
+            </span>
+          ))}
         </div>
       </div>
       <div className="p-4">

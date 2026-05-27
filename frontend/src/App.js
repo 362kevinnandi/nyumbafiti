@@ -33,6 +33,7 @@ import YardSaleDetailPage from "@/pages/YardSaleDetail";
 import LeasesPage from "@/pages/Leases";
 import VisitorsPage from "@/pages/Visitors";
 import SecurityPage from "@/pages/Security";
+import PassViewPage from "@/pages/PassView";
 
 function RequireAuth({ children, roles }) {
   const { user, loading } = useAuth();
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/" element={<RootRedirect />} />
           <Route path="/marketplace" element={<MarketplacePage />} />
           <Route path="/marketplace/:unitId" element={<MarketplaceDetailPage />} />
+          <Route path="/pass/:token" element={<PassViewPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 

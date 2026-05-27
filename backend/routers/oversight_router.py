@@ -36,9 +36,18 @@ async def list_pending_approvals(_: dict = Depends(require_role("admin"))):
         {"_id": 0, "password_hash": 0},
     ).sort("created_at", -1).to_list(500)
     security = await db["users"].find(
+        # Security personnel are landlord-managed (no admin approval) — kept for backwards-compat
+        # but no longer surfaced in the queue.
         {"role": "security", "approval_status": "pending"},
         {"_id": 0, "password_hash": 0},
     ).sort("created_at", -1).to_list(500)
+    # Auto-approve any legacy pending security users (one-time sweep)
+    if security:
+        await db["users"].update_many(
+            {"role": "security", "approval_status": "pending"},
+            {"$set": {"approval_status": "approved", "updated_at": now_iso()}},
+        )
+        security = []
 
     # Enrich with landlord names + unit info for context
     all_landlord_ids = list({

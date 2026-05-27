@@ -1,0 +1,35 @@
+{
+  "summary": "Round 4 regression — security auto-approve, admin reset-credentials + audit log, yard-sale forced KES 35 STK flow, public visitor pass viewer /pass/{token}, lease/rental marketplace filter, 24 admin export combinations (CSV/XLSX/PDF x 8 resources). Backend: 18/19 pytest pass (1 spec mismatch on reset empty-body). Frontend smoke: invalid-pass page, marketplace tenancy chips/badges, yard-sale modal with KES 35 + phone, visitors copy-share-link, admin reset/export menu all render correctly. CRITICAL UI BUG: tenant4 (lease) sidebar still shows 'Rental Agreement' — dynamic Lease/Rental label is NOT working.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/admin/users/{id}/reset-credentials", "issue": "Empty JSON body {} should return 400 per spec, but currently returns 200 and auto-generates a random password. This violates the contract and also caused mary@demo.nyumba's password to silently change during a test run — high blast radius for accidental admin clicks. Either reject empty body or guard behind an explicit boolean flag (e.g. reset_password=true).", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AppShell sidebar (tenant)", "issue": "Tenant4 (tenancy_type=lease) sidebar nav shows 'Rental Agreement' instead of 'Lease Agreement'. The dynamic label feature is not switching based on tenancy_type. Likely cause: AppShell.jsx reads user.tenancy_type but seeded lease tenant or /auth/me payload does not expose tenancy_type, or the conditional defaults to 'Rental'.", "selector": "aside nav a[href*='/lease'], aside nav a[href*='/rental']", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_round4.py", "/app/test_reports/pytest/round4_results.xml"],
+  "action_items": [
+    "Fix tenant sidebar to render 'Lease Agreement' for tenancy_type=lease. Verify /api/auth/me returns tenancy_type and AppShell uses it.",
+    "Tighten POST /api/admin/users/{id}/reset-credentials: reject empty body with HTTP 400 per spec, or require explicit reset_password=true flag to auto-generate. Currently any empty POST silently rotates the user's password (caused mary@demo.nyumba demo creds to drift during testing — already restored).",
+    "Optional: ensure admin_audit_log entries are sorted/created with created_at index for performance."
+  ],
+  "critical_code_review_comments": [
+    "admin_router.reset_credentials lines 246-251: 'elif payload.new_password == \"\" or payload.new_password is None' branch silently auto-generates a password on empty body. The docstring even encourages this behaviour, but the product spec explicitly says empty body must 400. Aligns docstring/spec/code.",
+    "yardsale_router.create_listing: uses multipart Form fields (title/price/phone_number) — undocumented for API consumers expecting JSON. Consider OpenAPI hint or accept JSON when no images are uploaded.",
+    "visitors_router.public_pass_view exposes visitor_phone in the public payload — anyone with the token can see the guest's phone. Acceptable for guests, but consider redacting in moderation contexts."
+  ],
+  "updated_files": ["/app/backend/tests/test_round4.py", "/app/test_reports/iteration_11.json", "/app/test_reports/pytest/round4_results.xml"],
+  "success_rate": {"backend": "94.7% (18/19)", "frontend": "85% (5/6 verified flows; sidebar lease label broken)"},
+  "test_credentials": "admin@nyumbaos.co.ke/admin123, mary@demo.nyumba/demo123 (restored after test drift), tenant1..4@demo.nyumba/demo123, sg1/sg2@demo.nyumba/demo123. NOTE: empty-body reset bug also leaked mary's hashed-password change; I restored it via admin reset back to demo123.",
+  "seed_data_creation": "Throwaway: ~5 TEST_SG/TEST_EM/TEST_EB/TEST_RT security users created via /api/security for reset-credentials tests (left in DB, prefixed TEST_). ~4 TEST yard-sale listings created (1 active, 3 pending_payment). 1 TEST visitor pass.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_round4.py is the canonical Round 4 regression file (19 tests across 6 classes). Yard-sale POST is multipart Form (Form(...) fields title, price, phone_number, scope, description) — NOT JSON. Visitor pass create uses POST /api/visitor-passes (NOT /visitors/passes). Public viewer is GET /api/public/pass/{token} (no auth). Admin exports are GET /api/admin/export/{resource}.{format} for resources={users,payments,payouts,properties,bills,issues,viewings,leases} and formats={csv,xlsx,pdf}. The lease-tenancy sidebar bug needs both frontend (AppShell) and possibly backend /auth/me inspection to fix.",
+  "rca of the issue": "tenant4 sidebar Lease bug: Browser-rendered sidebar text contains 'Rental Agreement' for tenant4 who is seeded as tenancy_type=lease. Hypothesis: AppShell.jsx checks user.tenancy_type but auth/me may return only the user record without unit/lease tenancy_type populated, OR the conditional logic has the labels swapped/defaulted. Action: log user object in AppShell render and confirm tenancy_type is reaching the component; if not, enrich /api/auth/me response with active lease's tenancy_type. Empty-body reset bug RCA: admin_router.py reset_credentials elif on lines 246-251 generates a password when both new_password and new_email are None — contradicting spec. Fix: replace with `if not payload.new_password and not payload.new_email: raise HTTPException(400, ...)`."
+}
