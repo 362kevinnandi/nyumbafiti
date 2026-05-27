@@ -49,6 +49,15 @@ Landlord, Tenant, Caretaker, Prospect, Security, Super Admin.
 - **Property tile sliders** — Swiper on landlord properties grid + marketplace tiles + detail page.
 - **Demo data seeder** — `python3 backend/seed_demo_data.py [--reset]` — 6 properties (mix lease/rental), 12 units, 4 tenants, 2 caretakers, 2 security, 5 yard sale items, 4 announcements, 3 issues.
 
+### Round 6 Fine-Tuning ✅ (Feb 2026) — Critical bug fix
+- **Removed false-positive demo callback** — `MPESA_DEMO_FALLBACK=false` by default. STK pushes no longer auto-succeed after 15s when user doesn't pay.
+- **Real Safaricom STK status polling** — `schedule_status_poll()` calls `/stkpushquery` at +15s/+45s/+95s/+170s/+270s and settles payment based on actual ResultCode (0=paid, 1032=cancelled, 1037=timeout, 1=insufficient).
+- **`/api/payments/{id}/check`** — manual on-demand Safaricom truth query (UI auto-fires at +25s).
+- **`/api/payments/{id}/cancel`** — tenant aborts stuck STK to retry.
+- **`payment_failed` notification kind** — tenant gets a notification with retry link when STK fails.
+- **Two-step flow generalized** to ALL bill types (rent / water / electricity / service_charge / other) — PayDialog wording adapts.
+- **Yard sale + viewing flows** — same anti-false-positive path. Ignored STK no longer flips listing to active or auto-issues prospect QR.
+
 ### Round 5 Fine-Tuning ✅ (Feb 2026)
 - **Security scan bug fix** — `isStaff` array on `/visitors` now includes `security` so the "Scan / Log Entry" button is visible to security users.
 - **Two-step rent payment** — tenant pays 2.5% service fee (rounded up to KES 10) via STK push to platform paybill 247247 / 0740479864; then pays rent manually to landlord's paybill (stored per-property); submits M-Pesa receipt code; landlord (or caretaker) confirms or rejects. Bill statuses: `pending → awaiting_rent_receipt → awaiting_landlord_confirmation → paid` (or rejected → pending).

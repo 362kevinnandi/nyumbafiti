@@ -78,7 +78,7 @@ async def _process_callback_payload(payload: dict):
                 reason = result_desc or "Payment was not completed"
                 await notify_user(
                     payment["tenant_id"],
-                    "payment_succeeded",  # reused channel
+                    "payment_failed",
                     f"Payment did not go through — {reason}",
                     "Your M-Pesa payment was not completed (you may have cancelled, timed out, or had insufficient balance). Open the bill and try again.",
                     link="/bills" if payment.get("bill_id") else "/marketplace",

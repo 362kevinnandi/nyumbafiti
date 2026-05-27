@@ -468,6 +468,7 @@ class VisitorPass(BaseModel):
 NotificationKind = Literal[
     "bill_due", "announcement", "issue_update", "forum_reply",
     "lease_pending", "lease_signed", "visitor_arrived", "payment_succeeded",
+    "payment_failed",
     "yard_sale_featured", "system",
 ]
 
