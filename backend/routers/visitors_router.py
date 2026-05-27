@@ -80,6 +80,9 @@ async def list_passes(user: dict = Depends(get_current_user)):
 
     if user["role"] == "tenant":
         query = {"tenant_id": user["id"]}
+    elif user["role"] == "prospect":
+        # Prospects see their own auto-issued viewing passes (tenant_id is reused as the holder)
+        query = {"tenant_id": user["id"], "is_prospect_pass": True}
     elif user["role"] in ("caretaker", "security"):
         if not user.get("landlord_id"):
             return []
@@ -91,9 +94,9 @@ async def list_passes(user: dict = Depends(get_current_user)):
     else:
         return []
     items = await db["visitor_passes"].find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
-    # attach QR only for active passes that belong to this tenant
+    # attach QR for active passes that belong to the requester (tenant or prospect)
     for it in items:
-        if user["role"] == "tenant" and it["status"] == "active":
+        if user["role"] in ("tenant", "prospect") and it["status"] == "active":
             it["qr_data_url"] = _qr_data_url(it["token"])
     return items
 

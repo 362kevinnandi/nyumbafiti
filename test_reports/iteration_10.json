@@ -1,0 +1,49 @@
+{
+  "summary": "Round 3 regression — social reactions, view receipts, multi-turn AI chat, admin moderation router (summary + list + delete + cascade), and prospect QR pass auto-issuance. 17/17 backend tests pass on /app/backend/tests/test_round3.py. Frontend smoke: admin moderation page loads with summary grid, all 6 tabs (yard-sale, announcements, forum/threads, viewings, visitor-passes, ai-conversations) render successfully, search filter works. Prospect dashboard correctly shows prospect-qr-banner with embedded QR base64 image after demo M-Pesa auto-confirm.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Dashboard prospect QR banner",
+        "issue": "Banner shows 'Expected: Invalid Date' because expected_time on the visitor pass is only a time string (e.g. '10:00'), but the JSX does `new Date(item.expected_time).toLocaleString()` (or similar) which yields Invalid Date. Either persist a full ISO datetime in payments_router auto-issue, or render expected_time directly without Date parsing.",
+        "selector": "[data-testid='prospect-qr-banner']",
+        "priority": "LOW"
+      },
+      {
+        "component": "Admin Moderation - Visitor Passes row",
+        "issue": "Same Invalid Date issue likely visible in moderation Visitor Passes list (uses new Date(item.expected_time) at AdminModeration.jsx line ~230).",
+        "selector": "[data-testid='moderation-list-visitor-passes']",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_round3.py",
+    "/app/test_reports/pytest/round3_results.xml"
+  ],
+  "action_items": [
+    "Optional: fix 'Invalid Date' display in prospect QR banner & moderation visitor-passes row by storing/using a full ISO datetime for expected_time (or rendering raw string).",
+    "Consider: GET /api/announcements (Form-based POST) is inconsistent with other JSON endpoints — not a Round 3 issue but noted.",
+    "All Round 3 functionality is verified end-to-end and ready to ship."
+  ],
+  "critical_code_review_comments": [
+    "social_router._counts_for: aggregation pipeline uses target_id only — if a future feature lets the same target_id span multiple types, counts could collide. Consider including target_type in the match.",
+    "ai_router.ai_chat: when replaying history through LlmChat.send_message, every prior user message is re-sent through the LLM — this multiplies LLM cost per turn (O(n) per message). Consider using LlmChat with sticky session_id (already done) without replay, since the SDK persists context server-side via session_id.",
+    "admin_moderation_router.delete_announcement: cascades reactions+views but does not delete announcement attachment files on disk (orphaned files). Minor cleanup item.",
+    "visitors_router.list_passes: prospect query relies on is_prospect_pass=True boolean — must be set consistently in payments_router auto-issue path; confirmed working in regression test."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_round3.py"
+  ],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "100% (admin moderation + prospect QR banner verified)"},
+  "test_credentials": "admin@nyumbaos.co.ke / admin123; land@demo.com / demo123; prospect created on-the-fly via /api/public/viewings (returns prospect_password).",
+  "seed_data_creation": "Created throwaway data only: a few TEST_throwaway announcements (deleted by their own test), throwaway AI conversations (deleted), throwaway TPUI_ prospect bookings (left in DB; safe). No seed data destroyed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_round3.py is the canonical Round 3 regression file. Login returns access_token (not token). Announcement POST is Form-multipart (Form(...) fields), not JSON. Public viewing booking uses scheduled_date/scheduled_time and returns viewing_id + payment_id + prospect_password; STK push is auto-initiated. Demo M-Pesa callback fires in ~4-7s and auto-issues prospect QR pass with is_prospect_pass=true."
+}

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, formatKES } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/AppShell";
-import { Home, Users, AlertTriangle, Wallet, Wrench, CheckCircle2 } from "lucide-react";
+import { Home, Users, AlertTriangle, Wallet, Wrench, CheckCircle2, QrCode, ShieldCheck } from "lucide-react";
 
 function StatCard({ label, value, sub, accent, testId, icon: Icon }) {
   return (
@@ -40,13 +41,19 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [prospectPasses, setProspectPasses] = useState([]);
 
   useEffect(() => {
     api.get("/dashboard/stats").then((r) => {
       setStats(r.data);
       setLoading(false);
     });
-  }, []);
+    if (user.role === "prospect") {
+      api.get("/visitor-passes")
+        .then((r) => setProspectPasses((r.data || []).filter((p) => p.status === "active")))
+        .catch(() => {});
+    }
+  }, [user.role]);
 
   const greet = `Good ${
     new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"
@@ -55,6 +62,48 @@ export default function DashboardPage() {
   return (
     <div data-testid="dashboard-page">
       <PageHeader overline={user.role + " · Nairobi"} title={greet} />
+
+      {user.role === "prospect" && prospectPasses.length > 0 && (
+        <div className="mb-8 bg-gradient-to-br from-emerald-50 to-white border-2 border-emerald-300 rounded-md p-6" data-testid="prospect-qr-banner">
+          <div className="flex flex-col sm:flex-row items-start gap-6">
+            <img
+              src={prospectPasses[0].qr_data_url}
+              alt="Your viewing entry pass QR"
+              className="w-44 h-44 bg-white border border-emerald-100 rounded-md shrink-0"
+              data-testid="prospect-qr-image"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-700" />
+                <span className="overline text-emerald-800">Your viewing entry pass</span>
+              </div>
+              <h2 className="font-display font-black text-2xl sm:text-3xl tracking-tight mb-2">
+                Show this QR at the gate
+              </h2>
+              <p className="text-sm text-zinc-700 leading-relaxed mb-4">
+                Auto-issued by NyumbaOS after your viewing payment. Valid for 24 hours.
+                Security will scan it on arrival — carry the same ID you signed up with.
+              </p>
+              <div className="flex flex-wrap gap-2 text-xs text-zinc-600">
+                <span className="badge-status bg-emerald-50 text-emerald-800 border border-emerald-200">VALID</span>
+                <span>Expected: <span className="font-mono-num font-semibold">{new Date(prospectPasses[0].expected_time).toLocaleString()}</span></span>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <Link to="/visitors">
+                  <button className="text-xs font-semibold px-3 h-8 rounded-md bg-zinc-950 text-white hover:bg-zinc-800 flex items-center gap-1.5" data-testid="prospect-view-all-passes-button">
+                    <QrCode className="w-3.5 h-3.5" /> View all my passes
+                  </button>
+                </Link>
+                <Link to="/viewings">
+                  <button className="text-xs font-semibold px-3 h-8 rounded-md border border-zinc-300 bg-white hover:bg-zinc-50" data-testid="prospect-view-viewings-button">
+                    My Viewings
+                  </button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading || !stats ? (
         <div className="text-zinc-500">Loading stats...</div>

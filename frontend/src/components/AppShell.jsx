@@ -5,7 +5,7 @@ import {
   Building2, LayoutDashboard, Home, Users, FileText,
   CreditCard, Wrench, HardHat, LogOut, ChevronRight, Calendar,
   ShieldCheck, Wallet, Settings, ClipboardCheck, MessageSquare,
-  Megaphone, Tag, FileSignature, QrCode, Shield,
+  Megaphone, Tag, FileSignature, QrCode, Shield, ShieldAlert,
 } from "lucide-react";
 
 const NAV_BY_ROLE = {
@@ -60,6 +60,7 @@ const NAV_BY_ROLE = {
     { to: "/admin/issues", label: "All Issues", icon: MessageSquare },
     { to: "/admin/payments", label: "All Payments", icon: CreditCard },
     { to: "/admin/payouts", label: "Payouts", icon: Wallet },
+    { to: "/admin/moderation", label: "Moderation", icon: ShieldAlert },
     { to: "/leases", label: "All Agreements", icon: FileSignature },
     { to: "/community", label: "Community", icon: Megaphone },
     { to: "/yard-sale", label: "Yard Sale", icon: Tag },
