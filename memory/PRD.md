@@ -49,6 +49,14 @@ Landlord, Tenant, Caretaker, Prospect, Security, Super Admin.
 - **Property tile sliders** — Swiper on landlord properties grid + marketplace tiles + detail page.
 - **Demo data seeder** — `python3 backend/seed_demo_data.py [--reset]` — 6 properties (mix lease/rental), 12 units, 4 tenants, 2 caretakers, 2 security, 5 yard sale items, 4 announcements, 3 issues.
 
+### Round 5 Fine-Tuning ✅ (Feb 2026)
+- **Security scan bug fix** — `isStaff` array on `/visitors` now includes `security` so the "Scan / Log Entry" button is visible to security users.
+- **Two-step rent payment** — tenant pays 2.5% service fee (rounded up to KES 10) via STK push to platform paybill 247247 / 0740479864; then pays rent manually to landlord's paybill (stored per-property); submits M-Pesa receipt code; landlord (or caretaker) confirms or rejects. Bill statuses: `pending → awaiting_rent_receipt → awaiting_landlord_confirmation → paid` (or rejected → pending).
+- **Property paybill + account** — landlords enter their own M-Pesa paybill & account on create/edit; tenants see clear pay-bill instructions in the Pay dialog.
+- **Admin Settings overhaul** — 4 sections (Platform paybill, Service Fee %, Viewing Split, Legacy commission) — all live in `platform_settings` doc and update via PATCH /admin/settings.
+- **Disbursement ledger for viewings** — every paid viewing fee creates a row showing caretaker_share=KES 150 + platform_share=KES 50; admin marks paid via `/admin/disbursements` after manual M-Pesa B2C disbursement.
+- **Realistic Daraja constraint documented** — STK push can only target our platform paybill, so the design splits each rent payment into "auto STK fee" + "manual receipt-confirmed rent".
+
 ## Architecture
 ```
 /app/

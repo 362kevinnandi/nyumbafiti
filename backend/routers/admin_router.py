@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from auth import require_role
+from auth import get_current_user, require_role
 from db import get_db
 from models import DEFAULT_COMMISSION_RATE, new_id, now_iso
 
@@ -88,7 +88,7 @@ async def update_settings(
 
 
 @router.get("/public-settings")
-async def public_settings():
+async def public_settings(_: dict = Depends(get_current_user)):
     """Settings safe to expose to all authenticated users (no secrets)."""
     db = get_db()
     s = await db["platform_settings"].find_one({"id": "default"}, {"_id": 0}) or DEFAULT_SETTINGS
