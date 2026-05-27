@@ -1,10 +1,10 @@
-"""Tenant & Caretaker management by landlord."""
+"""Tenant, Caretaker & Security personnel management by landlord."""
 from fastapi import APIRouter, Depends, HTTPException
 from pymongo.errors import DuplicateKeyError
 
 from auth import hash_password, require_role
 from db import get_db
-from models import CaretakerCreate, TenantCreate, new_id, now_iso
+from models import CaretakerCreate, SecurityCreate, TENANCY_TYPES, TenantCreate, new_id, now_iso
 
 router = APIRouter(tags=["users"])
 
@@ -22,12 +22,24 @@ async def create_tenant(
     if unit.get("tenant_id"):
         raise HTTPException(400, "Unit already occupied")
 
+    # Verify chosen tenancy_type is supported by the property
+    prop = await db["properties"].find_one({"id": unit["property_id"]})
+    if prop:
+        allowed = prop.get("tenancy_types") or ["rental"]
+        if payload.tenancy_type not in allowed:
+            raise HTTPException(
+                400,
+                f"This property only supports: {', '.join(allowed)}. "
+                f"You picked '{payload.tenancy_type}'.",
+            )
+
     tenant_doc = {
         "id": new_id(),
         "email": payload.email.lower(),
         "full_name": payload.full_name,
         "phone": payload.phone,
         "role": "tenant",
+        "tenancy_type": payload.tenancy_type,
         "password_hash": hash_password(payload.password),
         "landlord_id": user["id"],
         "unit_id": payload.unit_id,
@@ -140,3 +152,55 @@ async def remove_caretaker(
     if res.deleted_count == 0:
         raise HTTPException(404, "Caretaker not found")
     return {"ok": True}
+
+
+# ============ SECURITY PERSONNEL ============
+
+@router.post("/security")
+async def create_security(
+    payload: SecurityCreate, user: dict = Depends(require_role("landlord"))
+):
+    db = get_db()
+    doc = {
+        "id": new_id(),
+        "email": payload.email.lower(),
+        "full_name": payload.full_name,
+        "phone": payload.phone,
+        "role": "security",
+        "password_hash": hash_password(payload.password),
+        "landlord_id": user["id"],
+        "unit_id": None,
+        "approval_status": "pending",
+        "created_at": now_iso(),
+    }
+    try:
+        await db["users"].insert_one(doc)
+    except DuplicateKeyError:
+        raise HTTPException(400, "Email already registered")
+    doc.pop("password_hash", None)
+    doc.pop("_id", None)
+    return doc
+
+
+@router.get("/security")
+async def list_security(user: dict = Depends(require_role("landlord"))):
+    db = get_db()
+    rows = await db["users"].find(
+        {"landlord_id": user["id"], "role": "security"},
+        {"_id": 0, "password_hash": 0},
+    ).to_list(1000)
+    return rows
+
+
+@router.delete("/security/{security_id}")
+async def remove_security(
+    security_id: str, user: dict = Depends(require_role("landlord"))
+):
+    db = get_db()
+    res = await db["users"].delete_one(
+        {"id": security_id, "landlord_id": user["id"], "role": "security"}
+    )
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Security person not found")
+    return {"ok": True}
+

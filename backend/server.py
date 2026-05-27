@@ -55,17 +55,50 @@ async def _migrate_approval_status():
         {"approval_status": {"$exists": False}},
         {"$set": {"approval_status": "approved"}},
     )
-    # Backfill new Phase 1 fields
-    await db["properties"].update_many(
-        {"category": {"$exists": False}},
-        {"$set": {"category": "apartment"}},
-    )
+    # Backfill Phase 1 fields
     await db["properties"].update_many(
         {"featured": {"$exists": False}},
         {"$set": {"featured": False}},
     )
+    # Phase 5: simplified category taxonomy migration
+    legacy_map = {
+        "bedsitter": ("apartment", "bedsitter"),
+        "single_room": ("apartment", "single_room"),
+        "self_contained": ("apartment", "1br"),
+        "standalone": ("own_compound", None),
+        "compound": ("own_compound", None),
+        "airbnb": ("apartment", "1br"),
+    }
+    for legacy, (new_cat, new_sub) in legacy_map.items():
+        await db["properties"].update_many(
+            {"category": legacy},
+            {"$set": {"category": new_cat, "sub_type": new_sub}},
+        )
+    await db["properties"].update_many(
+        {"category": {"$exists": False}},
+        {"$set": {"category": "apartment", "sub_type": None}},
+    )
+    await db["properties"].update_many(
+        {"sub_type": {"$exists": False}},
+        {"$set": {"sub_type": None}},
+    )
+    # Phase 5: rental/lease tenancy_types
+    await db["properties"].update_many(
+        {"tenancy_types": {"$exists": False}},
+        {"$set": {"tenancy_types": ["rental"]}},
+    )
+    # Phase 5: tenant tenancy_type default
+    await db["users"].update_many(
+        {"role": "tenant", "tenancy_type": {"$exists": False}},
+        {"$set": {"tenancy_type": "rental"}},
+    )
+    # Phase 5: lease agreement_type default
+    await db["leases"].update_many(
+        {"agreement_type": {"$exists": False}},
+        {"$set": {"agreement_type": "lease"}},
+    )
     user_res = await db["users"].update_many(
-        {"role": {"$in": ["tenant", "caretaker"]}, "approval_status": {"$exists": False}},
+        {"role": {"$in": ["tenant", "caretaker", "security"]}, "approval_status": {"$exists": False}},
         {"$set": {"approval_status": "approved"}},
     )
     if prop_res.modified_count or user_res.modified_count:

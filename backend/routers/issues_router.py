@@ -15,8 +15,10 @@ async def list_issues(user: dict = Depends(get_current_user)):
         query = {"landlord_id": user["id"]}
     elif user["role"] == "tenant":
         query = {"tenant_id": user["id"]}
-    elif user["role"] == "caretaker":
+    elif user["role"] in ("caretaker", "security"):
         query = {"$or": [{"assigned_to": user["id"]}, {"landlord_id": user.get("landlord_id")}]}
+    elif user["role"] == "admin":
+        query = {}
     else:
         return []
     issues = await db["issues"].find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
@@ -85,23 +87,29 @@ async def update_issue(
     issue = await db["issues"].find_one({"id": issue_id})
     if not issue:
         raise HTTPException(404, "Issue not found")
-    # permission: landlord (own), caretaker (assigned), tenant cannot update
+    # permission: landlord (own), caretaker/security (assigned or same landlord)
     if user["role"] == "landlord" and issue["landlord_id"] != user["id"]:
         raise HTTPException(403, "Forbidden")
-    if user["role"] == "caretaker" and issue.get("assigned_to") != user["id"]:
-        # allow caretakers in the same landlord network to claim
+    if user["role"] in ("caretaker", "security") and issue.get("assigned_to") != user["id"]:
+        # allow same-landlord-network claims
         if issue["landlord_id"] != user.get("landlord_id"):
             raise HTTPException(403, "Forbidden")
     if user["role"] == "tenant":
         raise HTTPException(403, "Tenants cannot update issues")
-    if user["role"] == "caretaker" and user.get("approval_status") == "pending":
+    if user["role"] in ("caretaker", "security") and user.get("approval_status") == "pending":
         raise HTTPException(
             403,
-            "Your caretaker account is pending admin verification. You cannot take action on tickets yet.",
+            "Your account is pending admin verification. You cannot take action on tickets yet.",
         )
 
     update = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
     if update:
+        # If transitioning to resolved/closed, stamp resolver attribution
+        if update.get("status") in ("resolved", "closed") and issue.get("status") not in ("resolved", "closed"):
+            update["resolved_by_id"] = user["id"]
+            update["resolved_by_name"] = user["full_name"]
+            update["resolved_by_role"] = user["role"]
+            update["resolved_at"] = now_iso()
         update["updated_at"] = now_iso()
         await db["issues"].update_one({"id": issue_id}, {"$set": update})
     fresh = await db["issues"].find_one({"id": issue_id}, {"_id": 0})
@@ -118,7 +126,8 @@ async def get_messages(issue_id: str, user: dict = Depends(get_current_user)):
     allowed = (
         (user["role"] == "landlord" and issue["landlord_id"] == user["id"])
         or (user["role"] == "tenant" and issue["tenant_id"] == user["id"])
-        or (user["role"] == "caretaker" and issue["landlord_id"] == user.get("landlord_id"))
+        or (user["role"] in ("caretaker", "security") and issue["landlord_id"] == user.get("landlord_id"))
+        or (user["role"] == "admin")
     )
     if not allowed:
         raise HTTPException(403, "Forbidden")

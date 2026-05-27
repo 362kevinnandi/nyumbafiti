@@ -5,7 +5,7 @@ import {
   Building2, LayoutDashboard, Home, Users, FileText,
   CreditCard, Wrench, HardHat, LogOut, ChevronRight, Calendar,
   ShieldCheck, Wallet, Settings, ClipboardCheck, MessageSquare,
-  Megaphone, Tag, FileSignature, QrCode,
+  Megaphone, Tag, FileSignature, QrCode, Shield,
 } from "lucide-react";
 
 const NAV_BY_ROLE = {
@@ -14,11 +14,12 @@ const NAV_BY_ROLE = {
     { to: "/properties", label: "Properties", icon: Home },
     { to: "/tenants", label: "Tenants", icon: Users },
     { to: "/caretakers", label: "Caretakers", icon: HardHat },
+    { to: "/security", label: "Security", icon: Shield },
     { to: "/bills", label: "Bills", icon: FileText },
     { to: "/payments", label: "Payments", icon: CreditCard },
     { to: "/issues", label: "Issues", icon: Wrench },
     { to: "/viewings", label: "Viewings", icon: Calendar },
-    { to: "/leases", label: "Leases", icon: FileSignature },
+    { to: "/leases", label: "Agreements", icon: FileSignature },
     { to: "/community", label: "Community", icon: Megaphone },
     { to: "/yard-sale", label: "Yard Sale", icon: Tag },
     { to: "/visitors", label: "Visitors", icon: QrCode },
@@ -28,7 +29,7 @@ const NAV_BY_ROLE = {
     { to: "/bills", label: "My Bills", icon: FileText },
     { to: "/payments", label: "Payment History", icon: CreditCard },
     { to: "/issues", label: "Report Issues", icon: Wrench },
-    { to: "/leases", label: "My Lease", icon: FileSignature },
+    { to: "/leases", label: "My Agreement", icon: FileSignature },
     { to: "/community", label: "Community", icon: Megaphone },
     { to: "/yard-sale", label: "Yard Sale", icon: Tag },
     { to: "/visitors", label: "Visitors", icon: QrCode },
@@ -39,9 +40,16 @@ const NAV_BY_ROLE = {
     { to: "/visitors", label: "Visitor Entry", icon: QrCode },
     { to: "/community", label: "Community", icon: Megaphone },
   ],
+  security: [
+    { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
+    { to: "/visitors", label: "Visitor Entry", icon: QrCode },
+    { to: "/issues", label: "Security Tickets", icon: Wrench },
+    { to: "/community", label: "Community", icon: Megaphone },
+  ],
   prospect: [
     { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
     { to: "/viewings", label: "My Viewings", icon: Calendar },
+    { to: "/visitors", label: "My Visitor Pass", icon: QrCode },
   ],
   admin: [
     { to: "/admin", label: "Platform Overview", icon: ShieldCheck },
@@ -52,8 +60,10 @@ const NAV_BY_ROLE = {
     { to: "/admin/issues", label: "All Issues", icon: MessageSquare },
     { to: "/admin/payments", label: "All Payments", icon: CreditCard },
     { to: "/admin/payouts", label: "Payouts", icon: Wallet },
+    { to: "/leases", label: "All Agreements", icon: FileSignature },
     { to: "/community", label: "Community", icon: Megaphone },
     { to: "/yard-sale", label: "Yard Sale", icon: Tag },
+    { to: "/visitors", label: "Visitor Passes", icon: QrCode },
     { to: "/admin/settings", label: "Settings", icon: Settings },
   ],
 };

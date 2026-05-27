@@ -11,6 +11,8 @@ from auth import get_current_user, require_role
 from db import get_db
 from models import (
     PROPERTY_CATEGORIES,
+    PROPERTY_SUB_TYPES,
+    TENANCY_TYPES,
     Property,
     PropertyUpdate,
     Unit,
@@ -56,6 +58,8 @@ async def create_property(
     address: str = Form(...),
     description: str = Form(""),
     category: str = Form("apartment"),
+    sub_type: Optional[str] = Form(None),
+    tenancy_types: str = Form("rental"),  # comma-separated: "rental" or "lease" or "rental,lease"
     images: List[UploadFile] = File([]),
     user: dict = Depends(require_role("landlord")),
 ):
@@ -63,6 +67,11 @@ async def create_property(
 
     if category not in PROPERTY_CATEGORIES:
         raise HTTPException(400, f"Invalid category. Must be one of: {', '.join(PROPERTY_CATEGORIES)}")
+    if sub_type and sub_type not in PROPERTY_SUB_TYPES:
+        raise HTTPException(400, f"Invalid sub_type. Must be one of: {', '.join(PROPERTY_SUB_TYPES)}")
+    tt_list = [t.strip() for t in tenancy_types.split(",") if t.strip()]
+    if not tt_list or any(t not in TENANCY_TYPES for t in tt_list):
+        raise HTTPException(400, "tenancy_types must contain one or both of: rental, lease")
 
     image_paths = []
     for image in images[:5]:
@@ -81,6 +90,8 @@ async def create_property(
         "address": address,
         "description": description,
         "category": category,
+        "sub_type": sub_type or None,
+        "tenancy_types": tt_list,
         "featured": False,
         "images": image_paths,
         "units_count": 0,
@@ -118,6 +129,12 @@ async def update_property(
 
     if "category" in updates and updates["category"] not in PROPERTY_CATEGORIES:
         raise HTTPException(400, "Invalid category")
+    if "sub_type" in updates and updates["sub_type"] and updates["sub_type"] not in PROPERTY_SUB_TYPES:
+        raise HTTPException(400, "Invalid sub_type")
+    if "tenancy_types" in updates:
+        tts = updates["tenancy_types"] or []
+        if not tts or any(t not in TENANCY_TYPES for t in tts):
+            raise HTTPException(400, "tenancy_types must contain one or both of: rental, lease")
 
     if updates:
         updates["updated_at"] = now_iso()
@@ -127,6 +144,8 @@ async def update_property(
     fresh["units_count"] = await db["units"].count_documents({"property_id": prop_id})
     # Backfill new fields for old docs
     fresh.setdefault("category", "apartment")
+    fresh.setdefault("sub_type", None)
+    fresh.setdefault("tenancy_types", ["rental"])
     fresh.setdefault("featured", False)
     return Property(**fresh)
 

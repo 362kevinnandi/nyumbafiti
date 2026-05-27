@@ -11,17 +11,33 @@ import { Plus, Users, Trash2, UserCircle } from "lucide-react";
 export default function TenantsPage() {
   const [tenants, setTenants] = useState([]);
   const [units, setUnits] = useState([]);
+  const [properties, setProperties] = useState([]);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ email: "", full_name: "", phone: "", password: "", unit_id: "" });
+  const [form, setForm] = useState({ email: "", full_name: "", phone: "", password: "", unit_id: "", tenancy_type: "rental" });
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [t, u] = await Promise.all([api.get("/tenants"), api.get("/units")]);
+    const [t, u, p] = await Promise.all([api.get("/tenants"), api.get("/units"), api.get("/properties")]);
     setTenants(t.data);
-    setUnits(u.data.filter((u) => !u.occupied));
+    setUnits(u.data.filter((un) => !un.occupied));
+    setProperties(p.data);
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  const selectedUnit = units.find((u) => u.id === form.unit_id);
+  const selectedProperty = selectedUnit ? properties.find((p) => p.id === selectedUnit.property_id) : null;
+  const availableTenancyTypes = selectedProperty?.tenancy_types || ["rental", "lease"];
+
+  // Auto-select tenancy_type if only one option, or invalidate selection
+  useEffect(() => {
+    if (selectedProperty) {
+      const tt = selectedProperty.tenancy_types || ["rental"];
+      if (!tt.includes(form.tenancy_type)) {
+        setForm((f) => ({ ...f, tenancy_type: tt[0] }));
+      }
+    }
+  }, [form.unit_id, selectedProperty, form.tenancy_type]);
 
   const create = async (e) => {
     e.preventDefault();
@@ -29,7 +45,7 @@ export default function TenantsPage() {
       await api.post("/tenants", form);
       toast.success(`Tenant ${form.full_name} added`);
       setOpen(false);
-      setForm({ email: "", full_name: "", phone: "", password: "", unit_id: "" });
+      setForm({ email: "", full_name: "", phone: "", password: "", unit_id: "", tenancy_type: "rental" });
       load();
     } catch (err) {
       toast.error(formatApiError(err, "Failed"));
@@ -74,6 +90,33 @@ export default function TenantsPage() {
                   </select>
                   {units.length === 0 && <div className="text-xs text-zinc-500 mt-1">No vacant units. Create units first.</div>}
                 </div>
+                {selectedUnit && (
+                  <div>
+                    <Label className="overline">Agreement type</Label>
+                    <div className="flex gap-2 mt-2" data-testid="tenant-tenancy-toggle">
+                      {availableTenancyTypes.map((t) => {
+                        const active = form.tenancy_type === t;
+                        const label = t === "rental" ? "Rental Agreement" : "Lease Agreement";
+                        return (
+                          <button
+                            type="button"
+                            key={t}
+                            onClick={() => setForm({ ...form, tenancy_type: t })}
+                            className={`px-4 h-10 rounded-full border text-sm font-semibold transition-all ${
+                              active ? "bg-zinc-950 text-white border-zinc-950" : "bg-white border-zinc-300 text-zinc-700"
+                            }`}
+                            data-testid={`tenant-tenancy-${t}`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {availableTenancyTypes.length === 1 && (
+                      <div className="text-[10px] text-zinc-500 mt-1.5">This property only offers {availableTenancyTypes[0]} agreements.</div>
+                    )}
+                  </div>
+                )}
                 <DialogFooter>
                   <Button type="submit" className="bg-zinc-950 hover:bg-zinc-800" data-testid="tenant-submit-button">Create tenant</Button>
                 </DialogFooter>

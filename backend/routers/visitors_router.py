@@ -80,7 +80,7 @@ async def list_passes(user: dict = Depends(get_current_user)):
 
     if user["role"] == "tenant":
         query = {"tenant_id": user["id"]}
-    elif user["role"] == "caretaker":
+    elif user["role"] in ("caretaker", "security"):
         if not user.get("landlord_id"):
             return []
         query = {"landlord_id": user["landlord_id"]}
@@ -99,12 +99,12 @@ async def list_passes(user: dict = Depends(get_current_user)):
 
 
 @router.post("/visitor-passes/scan/{token}")
-async def scan_pass(token: str, user: dict = Depends(require_role("caretaker", "admin", "landlord"))):
+async def scan_pass(token: str, user: dict = Depends(require_role("caretaker", "security", "admin", "landlord"))):
     db = get_db()
     p = await db["visitor_passes"].find_one({"token": token})
     if not p:
         raise HTTPException(404, "Pass not found")
-    if user["role"] == "caretaker" and p["landlord_id"] != user.get("landlord_id"):
+    if user["role"] in ("caretaker", "security") and p["landlord_id"] != user.get("landlord_id"):
         raise HTTPException(403, "Forbidden")
     if user["role"] == "landlord" and p["landlord_id"] != user["id"]:
         raise HTTPException(403, "Forbidden")
@@ -122,12 +122,13 @@ async def scan_pass(token: str, user: dict = Depends(require_role("caretaker", "
             "status": "used", "used_at": used_at,
             "used_by_caretaker_id": user["id"],
             "used_by_caretaker_name": user["full_name"],
+            "used_by_role": user["role"],
         }},
     )
     await notify_user(
         p["tenant_id"], "visitor_arrived",
         f"Visitor {p['visitor_name']} has arrived",
-        f"Scanned by {user['full_name']} at {used_at}.",
+        f"Scanned by {user['full_name']} ({user['role']}) at {used_at}.",
         link="/visitors",
     )
     fresh = await db["visitor_passes"].find_one({"id": p["id"]}, {"_id": 0})

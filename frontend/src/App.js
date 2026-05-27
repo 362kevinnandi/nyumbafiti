@@ -30,6 +30,7 @@ import CommunityPage from "@/pages/Community";
 import YardSalePage from "@/pages/YardSale";
 import LeasesPage from "@/pages/Leases";
 import VisitorsPage from "@/pages/Visitors";
+import SecurityPage from "@/pages/Security";
 
 function RequireAuth({ children, roles }) {
   const { user, loading } = useAuth();
@@ -67,7 +68,7 @@ export default function App() {
             <Route path="/caretakers" element={<RequireAuth roles={["landlord"]}><CaretakersPage /></RequireAuth>} />
             <Route path="/bills" element={<RequireAuth roles={["landlord", "tenant"]}><BillsPage /></RequireAuth>} />
             <Route path="/payments" element={<RequireAuth roles={["landlord", "tenant"]}><PaymentsPage /></RequireAuth>} />
-            <Route path="/issues" element={<RequireAuth roles={["landlord", "tenant", "caretaker"]}><IssuesPage /></RequireAuth>} />
+            <Route path="/issues" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "security", "admin"]}><IssuesPage /></RequireAuth>} />
             <Route path="/viewings" element={<RequireAuth roles={["landlord", "prospect"]}><ViewingsPage /></RequireAuth>} />
             <Route path="/admin" element={<RequireAuth roles={["admin"]}><AdminDashboardPage /></RequireAuth>} />
             <Route path="/admin/users" element={<RequireAuth roles={["admin"]}><AdminUsersPage /></RequireAuth>} />
@@ -78,10 +79,11 @@ export default function App() {
             <Route path="/admin/bills" element={<RequireAuth roles={["admin"]}><AdminBillsPage /></RequireAuth>} />
             <Route path="/admin/issues" element={<RequireAuth roles={["admin"]}><AdminIssuesPage /></RequireAuth>} />
             <Route path="/admin/properties" element={<RequireAuth roles={["admin"]}><AdminPropertiesPage /></RequireAuth>} />
-            <Route path="/community" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "admin"]}><CommunityPage /></RequireAuth>} />
-            <Route path="/yard-sale" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "admin"]}><YardSalePage /></RequireAuth>} />
+            <Route path="/community" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "security", "admin"]}><CommunityPage /></RequireAuth>} />
+            <Route path="/yard-sale" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "security", "admin"]}><YardSalePage /></RequireAuth>} />
             <Route path="/leases" element={<RequireAuth roles={["landlord", "tenant", "admin"]}><LeasesPage /></RequireAuth>} />
-            <Route path="/visitors" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "admin"]}><VisitorsPage /></RequireAuth>} />
+            <Route path="/visitors" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "security", "admin", "prospect"]}><VisitorsPage /></RequireAuth>} />
+            <Route path="/security" element={<RequireAuth roles={["landlord"]}><SecurityPage /></RequireAuth>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

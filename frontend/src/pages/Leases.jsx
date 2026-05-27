@@ -29,7 +29,7 @@ export default function LeasesPage() {
   const [signing, setSigning] = useState(null);
   const [form, setForm] = useState({
     tenant_id: "", unit_id: "", rent_amount: "", deposit_amount: "",
-    start_date: "", end_date: "", terms: "",
+    start_date: "", end_date: "", terms: "", agreement_type: "lease",
   });
 
   const load = useCallback(async () => {
@@ -50,16 +50,23 @@ export default function LeasesPage() {
     }
   }, [load, user.role]);
 
-  const onUnit = (uid) => {
+  const onUnit = async (uid) => {
     const u = units.find((x) => x.id === uid);
-    if (u) {
-      setForm((f) => ({
-        ...f,
-        unit_id: uid,
-        tenant_id: u.tenant_id || "",
-        rent_amount: String(u.rent_amount || ""),
-      }));
-    }
+    if (!u) return;
+    // Fetch tenant tenancy_type to auto-pick agreement_type
+    let agreementType = "lease";
+    try {
+      const tres = await api.get(`/tenants`);
+      const t = (tres.data || []).find((x) => x.unit_id === uid);
+      if (t?.tenancy_type) agreementType = t.tenancy_type;
+    } catch {/* */}
+    setForm((f) => ({
+      ...f,
+      unit_id: uid,
+      tenant_id: u.tenant_id || "",
+      rent_amount: String(u.rent_amount || ""),
+      agreement_type: agreementType,
+    }));
   };
 
   const create = async (e) => {
@@ -73,13 +80,14 @@ export default function LeasesPage() {
         start_date: form.start_date,
         end_date: form.end_date,
         terms: form.terms,
+        agreement_type: form.agreement_type,
       });
-      toast.success("Lease sent to tenant");
+      toast.success(form.agreement_type === "rental" ? "Rental agreement sent" : "Lease sent");
       setOpen(false);
-      setForm({ tenant_id: "", unit_id: "", rent_amount: "", deposit_amount: "", start_date: "", end_date: "", terms: "" });
+      setForm({ tenant_id: "", unit_id: "", rent_amount: "", deposit_amount: "", start_date: "", end_date: "", terms: "", agreement_type: "lease" });
       load();
     } catch (err) {
-      toast.error(formatApiError(err, "Failed to create lease"));
+      toast.error(formatApiError(err, "Failed to create"));
     }
   };
 
@@ -113,17 +121,17 @@ export default function LeasesPage() {
     <div data-testid="leases-page">
       <PageHeader
         overline="Documents"
-        title="Digital Leases"
+        title={user.role === "tenant" ? "My Agreement" : "Rental & Lease Agreements"}
         action={canCreate && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button className="bg-zinc-950 hover:bg-zinc-800 rounded-md" data-testid="new-lease-button">
-                <Plus className="w-4 h-4 mr-1.5" /> New Lease
+                <Plus className="w-4 h-4 mr-1.5" /> New Agreement
               </Button>
             </DialogTrigger>
             <DialogContent className="rounded-md max-w-lg">
               <DialogHeader>
-                <DialogTitle className="font-display font-black text-2xl">Create Lease</DialogTitle>
+                <DialogTitle className="font-display font-black text-2xl">Create Agreement</DialogTitle>
                 <DialogDescription>
                   Generates a PDF and notifies the tenant for in-app e-signature.
                 </DialogDescription>
@@ -146,6 +154,25 @@ export default function LeasesPage() {
                     ))}
                   </select>
                 </div>
+                {form.unit_id && (
+                  <div>
+                    <Label className="overline">Agreement type</Label>
+                    <div className="flex gap-2 mt-2" data-testid="lease-agreement-type">
+                      {[{value:"rental",label:"Rental Agreement"},{value:"lease",label:"Lease Agreement"}].map((t) => {
+                        const active = form.agreement_type === t.value;
+                        return (
+                          <button type="button" key={t.value}
+                            onClick={() => setForm({ ...form, agreement_type: t.value })}
+                            className={`px-4 h-10 rounded-full border text-sm font-semibold ${active ? "bg-zinc-950 text-white border-zinc-950" : "bg-white border-zinc-300 text-zinc-700"}`}
+                            data-testid={`lease-agreement-type-${t.value}`}>
+                            {t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="text-[10px] text-zinc-500 mt-1.5">Auto-set from tenant's assigned tenancy type — override if needed.</div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="overline">Rent (KES)</Label>
@@ -192,6 +219,7 @@ export default function LeasesPage() {
               <thead className="bg-zinc-50 border-b border-zinc-200">
                 <tr>
                   <th className="text-left px-4 py-3 overline text-zinc-500">Tenant</th>
+                  <th className="text-left px-4 py-3 overline text-zinc-500">Type</th>
                   <th className="text-left px-4 py-3 overline text-zinc-500">Period</th>
                   <th className="text-right px-4 py-3 overline text-zinc-500">Rent</th>
                   <th className="text-left px-4 py-3 overline text-zinc-500">Status</th>
@@ -202,6 +230,11 @@ export default function LeasesPage() {
                 {items.map((l) => (
                   <tr key={l.id} className="border-b border-zinc-100 hover:bg-zinc-50" data-testid={`lease-row-${l.id}`}>
                     <td className="px-4 py-3 font-semibold">{l.tenant_name}</td>
+                    <td className="px-4 py-3">
+                      <span className={`badge-status ${l.agreement_type === "rental" ? "bg-sky-50 text-sky-800" : "bg-indigo-50 text-indigo-800"}`}>
+                        {(l.agreement_type || "lease").toUpperCase()}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-zinc-600">{l.start_date} → {l.end_date}</td>
                     <td className="px-4 py-3 text-right font-mono-num">{formatKES(l.rent_amount)}</td>
                     <td className="px-4 py-3">

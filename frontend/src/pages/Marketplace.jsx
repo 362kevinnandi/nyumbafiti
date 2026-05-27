@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, formatKES, mediaUrl } from "@/lib/api";
+import { api, formatKES } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,22 +12,28 @@ import "swiper/css/navigation";
 import "swiper/css/pagination";
 import "./swiper-overrides.css";
 import AiRecommendButton from "@/components/AiRecommendButton";
+import CardImageCarousel from "@/components/CardImageCarousel";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1630241466166-22e43156d8c0?crop=entropy&cs=srgb&fm=jpg&q=85&w=800";
 
-const CATEGORY_FILTERS = [
-  { value: "all", label: "All" },
+const TYPE_FILTERS = [
+  { value: "all", label: "All Types" },
   { value: "apartment", label: "Apartment" },
+  { value: "own_compound", label: "Own Compound" },
+];
+const SUB_TYPE_FILTERS = [
+  { value: "all", label: "Any Size" },
   { value: "bedsitter", label: "Bedsitter" },
   { value: "single_room", label: "Single Room" },
-  { value: "self_contained", label: "Self-Contained" },
-  { value: "standalone", label: "Standalone" },
-  { value: "compound", label: "Compound" },
-  { value: "airbnb", label: "Airbnb" },
+  { value: "1br", label: "1 BR" },
+  { value: "2br", label: "2 BR" },
+  { value: "3br", label: "3 BR" },
+  { value: "4br", label: "4 BR" },
+  { value: "5br_plus", label: "5+ BR" },
 ];
 
-const categoryLabel = (v) =>
-  CATEGORY_FILTERS.find((c) => c.value === v)?.label || "Apartment";
+const subTypeLabel = (v) => SUB_TYPE_FILTERS.find((c) => c.value === v)?.label || "";
+const typeLabel = (v) => TYPE_FILTERS.find((c) => c.value === v)?.label || "Apartment";
 
 // 8 cards per slide (4 columns × 2 rows on desktop)
 const CARDS_PER_SLIDE = 8;
@@ -44,6 +50,7 @@ export default function MarketplacePage() {
   const [search, setSearch] = useState("");
   const [maxRent, setMaxRent] = useState("");
   const [category, setCategory] = useState("all");
+  const [subType, setSubType] = useState("all");
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -61,14 +68,18 @@ export default function MarketplacePage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return listings;
-    return listings.filter(
+    let items = listings;
+    if (subType !== "all") {
+      items = items.filter((l) => (l.sub_type || l.property?.sub_type) === subType);
+    }
+    if (!q) return items;
+    return items.filter(
       (l) =>
         l.property.name.toLowerCase().includes(q) ||
         l.property.address.toLowerCase().includes(q) ||
         l.unit_number.toLowerCase().includes(q)
     );
-  }, [search, listings]);
+  }, [search, listings, subType]);
 
   const slides = useMemo(() => chunk(filtered, CARDS_PER_SLIDE), [filtered]);
 
@@ -122,7 +133,7 @@ export default function MarketplacePage() {
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <Input
-                placeholder="Search by area, building, unit..."
+                placeholder="e.g. Westlands 2 bedroom · or building name"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-11 pl-9 border-zinc-300"
@@ -143,24 +154,47 @@ export default function MarketplacePage() {
           </div>
 
           {/* Category chips */}
-          <div className="mt-6 flex flex-wrap gap-2" data-testid="category-chips">
-            {CATEGORY_FILTERS.map((c) => {
-              const active = category === c.value;
-              return (
-                <button
-                  key={c.value}
-                  onClick={() => setCategory(c.value)}
-                  className={`px-4 h-9 rounded-full border text-xs font-semibold transition-all ${
-                    active
-                      ? "bg-zinc-950 text-white border-zinc-950 shadow-sm"
-                      : "bg-white text-zinc-700 border-zinc-300 hover:border-zinc-500"
-                  }`}
-                  data-testid={`category-chip-${c.value}`}
-                >
-                  {c.label}
-                </button>
-              );
-            })}
+          <div className="mt-6 space-y-3" data-testid="category-chips">
+            <div className="flex flex-wrap gap-2">
+              <span className="overline text-zinc-500 self-center mr-2">Type</span>
+              {TYPE_FILTERS.map((c) => {
+                const active = category === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    onClick={() => setCategory(c.value)}
+                    className={`px-4 h-9 rounded-full border text-xs font-semibold transition-all ${
+                      active
+                        ? "bg-zinc-950 text-white border-zinc-950 shadow-sm"
+                        : "bg-white text-zinc-700 border-zinc-300 hover:border-zinc-500"
+                    }`}
+                    data-testid={`category-chip-${c.value}`}
+                  >
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="overline text-zinc-500 self-center mr-2">Size</span>
+              {SUB_TYPE_FILTERS.map((c) => {
+                const active = subType === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    onClick={() => setSubType(c.value)}
+                    className={`px-3.5 h-8 rounded-full border text-xs font-semibold transition-all ${
+                      active
+                        ? "bg-zinc-950 text-white border-zinc-950"
+                        : "bg-white text-zinc-700 border-zinc-300 hover:border-zinc-500"
+                    }`}
+                    data-testid={`subtype-chip-${c.value}`}
+                  >
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
@@ -235,36 +269,40 @@ export default function MarketplacePage() {
 }
 
 function ListingCard({ l }) {
-  const imgSrc = l.property.images?.[0] ? mediaUrl(l.property.images[0]) : FALLBACK_IMG;
   return (
     <Link
       to={`/marketplace/${l.id}`}
       className="bg-white border border-zinc-200 rounded-2xl overflow-hidden block group transition-all duration-300 shadow-sm hover:-translate-y-1 hover:shadow-2xl hover:border-zinc-300"
       data-testid={`listing-card-${l.id}`}
     >
-      <div
-        className="relative h-44 bg-zinc-100 overflow-hidden group-hover:scale-[1.02] transition-transform duration-500"
-        style={{
-          backgroundImage: `url(${imgSrc})`,
-          backgroundSize: "cover",
-          transition: "transform 0.5s ease",
-          backgroundPosition: "center",
-        }}
-      >
-        <div className="absolute top-3 left-3 bg-white/95 backdrop-blur px-2 py-0.5 rounded-sm text-xs font-mono-num font-semibold">
+      <div className="relative h-44 overflow-hidden">
+        <CardImageCarousel
+          imagesList={l.property.images || []}
+          fallback={FALLBACK_IMG}
+          className="absolute inset-0 w-full h-full"
+          rounded=""
+        />
+        <div className="absolute top-3 left-3 z-10 bg-white/95 backdrop-blur px-2 py-0.5 rounded-sm text-xs font-mono-num font-semibold">
           {formatKES(l.rent_amount)}/mo
         </div>
         {l.featured ? (
-          <div className="absolute top-3 right-3 bg-amber-400 text-zinc-950 border border-amber-500 px-2 py-0.5 rounded-sm overline text-[10px] shadow flex items-center gap-1" data-testid={`featured-badge-${l.id}`}>
+          <div className="absolute top-3 right-3 z-10 bg-amber-400 text-zinc-950 border border-amber-500 px-2 py-0.5 rounded-sm overline text-[10px] shadow flex items-center gap-1" data-testid={`featured-badge-${l.id}`}>
             <Sparkles className="w-3 h-3" /> Featured
           </div>
         ) : (
-          <div className="absolute top-3 right-3 bg-zinc-950/90 text-white px-2 py-0.5 rounded-sm overline text-[10px]">
+          <div className="absolute top-3 right-3 z-10 bg-zinc-950/90 text-white px-2 py-0.5 rounded-sm overline text-[10px]">
             Verified
           </div>
         )}
-        <div className="absolute bottom-3 left-3 bg-zinc-950/85 text-white px-2 py-0.5 rounded-sm overline text-[10px] backdrop-blur">
-          {categoryLabel(l.category)}
+        <div className="absolute bottom-3 left-3 z-10 flex gap-1.5">
+          <span className="bg-zinc-950/85 text-white px-2 py-0.5 rounded-sm overline text-[10px] backdrop-blur">
+            {typeLabel(l.category)}
+          </span>
+          {(l.sub_type || l.property?.sub_type) && (
+            <span className="bg-white/95 text-zinc-900 px-2 py-0.5 rounded-sm overline text-[10px] backdrop-blur">
+              {subTypeLabel(l.sub_type || l.property?.sub_type)}
+            </span>
+          )}
         </div>
       </div>
       <div className="p-4">

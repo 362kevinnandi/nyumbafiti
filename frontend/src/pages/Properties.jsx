@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, formatApiError, formatKES, mediaUrl } from "@/lib/api";
+import { api, formatApiError, formatKES } from "@/lib/api";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,21 +8,32 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Plus, Building, Home as HomeIcon, Trash2, MapPin, Pencil } from "lucide-react";
+import CardImageCarousel from "@/components/CardImageCarousel";
 
 const HERO_IMG = "https://images.unsplash.com/photo-1630241466166-22e43156d8c0?crop=entropy&cs=srgb&fm=jpg&q=85&w=800";
 
 export const PROPERTY_CATEGORIES = [
   { value: "apartment", label: "Apartment" },
+  { value: "own_compound", label: "Own Compound" },
+];
+export const SUB_TYPES = [
   { value: "bedsitter", label: "Bedsitter" },
   { value: "single_room", label: "Single Room" },
-  { value: "self_contained", label: "Self-Contained" },
-  { value: "standalone", label: "Standalone" },
-  { value: "compound", label: "Compound" },
-  { value: "airbnb", label: "Airbnb" },
+  { value: "1br", label: "1 Bedroom" },
+  { value: "2br", label: "2 Bedrooms" },
+  { value: "3br", label: "3 Bedrooms" },
+  { value: "4br", label: "4 Bedrooms" },
+  { value: "5br_plus", label: "5+ Bedrooms" },
+];
+export const TENANCY_OPTIONS = [
+  { value: "rental", label: "Rental" },
+  { value: "lease", label: "Lease" },
 ];
 
 const categoryLabel = (v) =>
   PROPERTY_CATEGORIES.find((c) => c.value === v)?.label || "Apartment";
+const subTypeLabel = (v) =>
+  SUB_TYPES.find((c) => c.value === v)?.label || "";
 
 export default function PropertiesPage() {
   const [properties, setProperties] = useState([]);
@@ -35,6 +46,8 @@ export default function PropertiesPage() {
     address: "",
     description: "",
     category: "apartment",
+    sub_type: "",
+    tenancy_types: ["rental"],
   });
   const [editId, setEditId] = useState(null);
 
@@ -51,7 +64,7 @@ export default function PropertiesPage() {
   useEffect(() => { load(); }, [load]);
 
   const resetForm = () => {
-    setForm({ name: "", address: "", description: "", category: "apartment" });
+    setForm({ name: "", address: "", description: "", category: "apartment", sub_type: "", tenancy_types: ["rental"] });
     setImages([]);
     setEditId(null);
   };
@@ -63,9 +76,24 @@ export default function PropertiesPage() {
       address: p.address || "",
       description: p.description || "",
       category: p.category || "apartment",
+      sub_type: p.sub_type || "",
+      tenancy_types: (p.tenancy_types && p.tenancy_types.length) ? p.tenancy_types : ["rental"],
     });
     setImages([]);
     setOpen(true);
+  };
+
+  const toggleTenancy = (v) => {
+    setForm((f) => {
+      const has = f.tenancy_types.includes(v);
+      if (has && f.tenancy_types.length === 1) return f; // must keep at least one
+      return {
+        ...f,
+        tenancy_types: has
+          ? f.tenancy_types.filter((x) => x !== v)
+          : [...f.tenancy_types, v],
+      };
+    });
   };
 
   const createOrUpdateProperty = async (e) => {
@@ -77,6 +105,8 @@ export default function PropertiesPage() {
           address: form.address,
           description: form.description,
           category: form.category,
+          sub_type: form.sub_type || null,
+          tenancy_types: form.tenancy_types,
         });
         toast.success("Property updated");
       } else {
@@ -85,6 +115,8 @@ export default function PropertiesPage() {
         formData.append("address", form.address);
         formData.append("description", form.description);
         formData.append("category", form.category);
+        if (form.sub_type) formData.append("sub_type", form.sub_type);
+        formData.append("tenancy_types", form.tenancy_types.join(","));
         images.forEach((image) => formData.append("images", image));
         await api.post("/properties", formData, {
           headers: { "Content-Type": "multipart/form-data" },
@@ -165,6 +197,46 @@ export default function PropertiesPage() {
                         <option key={c.value} value={c.value}>{c.label}</option>
                       ))}
                     </select>
+                  </div>
+                  <div>
+                    <Label className="overline">Unit / Sub-type (optional)</Label>
+                    <select
+                      value={form.sub_type}
+                      onChange={(e) => setForm({ ...form, sub_type: e.target.value })}
+                      className="mt-1 w-full h-10 border border-zinc-300 rounded-md px-3 bg-white text-sm"
+                      data-testid="property-subtype-select"
+                    >
+                      <option value="">— None —</option>
+                      {SUB_TYPES.map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="overline">Tenancy types (pick one or both)</Label>
+                    <div className="flex gap-2 mt-2" data-testid="property-tenancy-toggle">
+                      {TENANCY_OPTIONS.map((t) => {
+                        const active = form.tenancy_types.includes(t.value);
+                        return (
+                          <button
+                            type="button"
+                            key={t.value}
+                            onClick={() => toggleTenancy(t.value)}
+                            className={`px-4 h-10 rounded-full border text-sm font-semibold transition-all ${
+                              active
+                                ? "bg-zinc-950 text-white border-zinc-950"
+                                : "bg-white border-zinc-300 text-zinc-700 hover:border-zinc-500"
+                            }`}
+                            data-testid={`property-tenancy-${t.value}`}
+                          >
+                            {t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="text-[10px] text-zinc-500 mt-1.5">
+                      Tenants assigned will only see the agreement type(s) you enable here.
+                    </div>
                   </div>
                   <div><Label className="overline">Description</Label><Input value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} className="mt-1" /></div>
                   {!editId && (
@@ -252,31 +324,47 @@ export default function PropertiesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" data-testid="properties-grid">
               {properties.map((p) => (
                 
-                <div key={p.id} className="bg-white border border-zinc-200 rounded-md overflow-hidden card-hover" data-testid={`property-card-${p.id}`}>
-                  <div className="relative h-44 bg-zinc-100" style={{
-                    backgroundImage: `url(${p.images?.[0] ? mediaUrl(p.images[0]) : HERO_IMG})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                  }}>
-                    <div className="absolute top-3 right-3 bg-white/95 backdrop-blur px-2 py-0.5 rounded-sm text-xs font-mono-num font-semibold">{p.units_count} units</div>
-                    <div className="absolute bottom-3 left-3 bg-zinc-950/85 text-white px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider backdrop-blur">
-                      {categoryLabel(p.category)}
+                <div key={p.id} className="group bg-white border border-zinc-200 rounded-2xl overflow-hidden card-hover shadow-sm hover:shadow-xl transition-all" data-testid={`property-card-${p.id}`}>
+                  <div className="relative h-44 bg-zinc-100">
+                    <CardImageCarousel
+                      imagesList={p.images || []}
+                      fallback={HERO_IMG}
+                      className="absolute inset-0 w-full h-full"
+                      rounded=""
+                    />
+                    <div className="absolute top-3 right-3 bg-white/95 backdrop-blur px-2 py-0.5 rounded-sm text-xs font-mono-num font-semibold z-10">{p.units_count} units</div>
+                    <div className="absolute bottom-3 left-3 z-10 flex gap-1.5">
+                      <span className="bg-zinc-950/90 text-white px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider backdrop-blur">
+                        {categoryLabel(p.category)}
+                      </span>
+                      {p.sub_type && (
+                        <span className="bg-white/95 text-zinc-900 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider backdrop-blur">
+                          {subTypeLabel(p.sub_type)}
+                        </span>
+                      )}
                     </div>
                     {p.approval_status === "pending" && (
-                      <div className="absolute top-3 left-3 bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider">Awaiting admin approval</div>
+                      <div className="absolute top-3 left-3 bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider z-10">Awaiting admin approval</div>
                     )}
                     {p.approval_status === "rejected" && (
-                      <div className="absolute top-3 left-3 bg-red-100 text-red-800 border border-red-200 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider">Rejected</div>
+                      <div className="absolute top-3 left-3 bg-red-100 text-red-800 border border-red-200 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider z-10">Rejected</div>
                     )}
                     {p.featured && (
-                      <div className="absolute top-3 left-3 bg-amber-400 text-zinc-950 border border-amber-500 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider shadow">Featured</div>
+                      <div className="absolute top-3 left-3 bg-amber-400 text-zinc-950 border border-amber-500 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider shadow z-10">Featured</div>
                     )}
                   </div>
                   <div className="p-5">
                     <div className="font-display font-bold text-lg mb-1 tracking-tight">{p.name}</div>
-                    <div className="flex items-start gap-1.5 text-xs text-zinc-500 mb-3">
+                    <div className="flex items-start gap-1.5 text-xs text-zinc-500 mb-2">
                       <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
                       <span>{p.address}</span>
+                    </div>
+                    <div className="flex gap-1.5 mb-2 flex-wrap">
+                      {(p.tenancy_types || ["rental"]).map((t) => (
+                        <span key={t} className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-700">
+                          {t}
+                        </span>
+                      ))}
                     </div>
                     {p.description && <div className="text-sm text-zinc-600 mb-3 line-clamp-2">{p.description}</div>}
                     <div className="flex justify-between items-center pt-3 border-t border-zinc-100">

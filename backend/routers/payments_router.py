@@ -104,20 +104,21 @@ async def _process_callback_payload(payload: dict):
                 {"id": bill["id"]},
                 {"$set": {"amount_paid": new_paid, "status": status}},
             )
-            # notify both tenant and landlord
+            bill_type_label = (bill.get("bill_type") or "rent").replace("_", " ").title()
+            receipt = update.get("mpesa_receipt", "") or ""
             from notifications import notify_user
             if payment.get("tenant_id"):
                 await notify_user(
                     payment["tenant_id"], "payment_succeeded",
-                    f"Payment received · KES {confirmed_amount:,.0f}",
-                    f"M-Pesa receipt {update.get('mpesa_receipt','')}. Bill is now {status}.",
+                    f"{bill_type_label} bill paid · KES {confirmed_amount:,.0f}",
+                    f"M-Pesa receipt {receipt}. Bill is now {status}.",
                     link="/payments",
                 )
             if payment.get("landlord_id"):
                 await notify_user(
                     payment["landlord_id"], "payment_succeeded",
-                    f"Rent paid · KES {confirmed_amount:,.0f}",
-                    f"Tenant payment received (receipt {update.get('mpesa_receipt','')}).",
+                    f"{bill_type_label} payment received · KES {confirmed_amount:,.0f}",
+                    f"From tenant (receipt {receipt}). Bill is now {status}.",
                     link="/payments",
                 )
 

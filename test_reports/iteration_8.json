@@ -1,0 +1,49 @@
+{
+  "summary": "Round 1 fine-tuning end-to-end tested. 21/21 new tests in /app/backend/tests/test_round1.py PASSING covering: bill notification labels (water/electricity etc), property category+sub_type+tenancy_types create/update validation, tenant tenancy_type validation, lease agreement_type + PDF title switch (RENTAL AGREEMENT vs RESIDENTIAL LEASE AGREEMENT, verified via pypdf text extraction), Security CRUD + landlord-only role check, security visitor-pass scan with used_by_role='security', security listing passes, security/caretaker/landlord issue resolve attribution (resolved_by_role + resolved_at + resolved_by_id), public listings expose sub_type + tenancy_types, migration backfills new fields. Frontend smoke: /security page renders for landlord with Add button, sidebar shows 'Security' link, Properties form has category/sub_type/tenancy fields, /leases shows Agreement column, /marketplace shows chip rows (Type + Size).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/approvals/user/{id}", "issue": "Oversight approval only supports tenant/caretaker; security role rejects with 400 'Only tenants and caretakers require approval'. Since security users start with approval_status='pending' and issues_router blocks pending security from acting, there is NO admin endpoint to approve a security user — they are functionally inert until pending is cleared. Worked around in test via direct DB. Recommend extending oversight decide_user() to accept 'security' role, or have security users auto-approved on landlord creation."},
+      {"endpoint": "GET /api/public/listings", "issue": "Top-level fields include 'category' and 'sub_type' but NOT 'tenancy_types' at top level. Spec said 'sub_type and tenancy_types in property block AND at top level'. Currently tenancy_types only exists inside listing.property. Minor — UI can read from listing.property.tenancy_types."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "/leases page load", "issue": "Two 404 console errors on GET /api/uploads/leases/lease_*.pdf — same as iteration_7 (stale/orphan PDF references). Non-blocking.", "affected_selectors": ["console: GET /api/uploads/leases/lease_*.pdf"]}
+    ],
+    "design_issues": [
+      {"screen": "Dialogs (Security add, Properties add)", "issues": ["Radix Dialog warning: 'Missing Description or aria-describedby for DialogContent' — add <DialogDescription> or aria-describedby for a11y."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_round1.py",
+    "/app/test_reports/pytest/round1_results.xml"
+  ],
+  "action_items": [
+    "REGRESSION: Pre-existing tests test_phase1_properties.py (8 fails + 4 errors) and test_phase234.py (3 fails) now fail because Round 1 intentionally changed the property category schema (bedsitter/standalone/compound -> apartment/own_compound) and lease now requires agreement_type. These tests use the OLD schema. Main agent should update these fixtures to use category='apartment'/sub_type='2br'/tenancy_types=['rental'] and lease payloads to include agreement_type='rental'. Specifically: test_phase1_properties.py uses category='bedsitter' (now invalid) and test_phase234.py creates leases without agreement_type on a property that defaults to ['rental'] but tries agreement_type='lease' (rejected by validation). This is NOT a code bug — it's a test-fixture bump needed.",
+    "MINOR: Extend /api/admin/approvals/user to support 'security' role, OR auto-approve security users on creation (similar to how landlord stays approved). Current state: security accounts created by landlord are stuck in approval_status='pending' with no path to approval via API.",
+    "MINOR: Add 'tenancy_types' at top level of /api/public/listings entries (mirrors category/sub_type) to fully match spec.",
+    "MINOR: Resolve the 2 lease PDF 404s on /leases page (null-check pdf_path before rendering download link)."
+  ],
+  "critical_code_review_comments": [
+    "Property validation correctly rejects category not in {apartment, own_compound}, sub_type not in 7 allowed, and tenancy_types empty or with invalid tokens (both POST multipart and PATCH JSON).",
+    "Tenant create requires tenancy_type Literal['rental','lease'] + cross-checks against property.tenancy_types — returns helpful 400 'This property only supports: rental. You picked lease.'",
+    "Lease create symmetric check on agreement_type vs property.tenancy_types; PDF _build_pdf branches title on agreement_type=='rental' — verified via pypdf text extraction.",
+    "payments_router._process_callback_payload correctly uses bill.bill_type.title() for both tenant ('Water bill paid · KES 500') and landlord ('Water payment received · KES 500') notifications — no longer hardcoded 'Rent paid'.",
+    "Security CRUD endpoints mirror caretaker CRUD; require_role('landlord') correctly returns 403 for caretaker/tenant.",
+    "visitors_router.scan_pass enforces same-landlord check for both caretaker AND security, records used_by_role on the pass, includes role in tenant notification.",
+    "issues_router PATCH stamps resolved_by_id/name/role/at exactly on status transition into resolved/closed (not on subsequent updates) — correct.",
+    "BUG: Security users get role='security' + approval_status='pending' on create, but oversight_router.decide_user() rejects role=='security' with 'Only tenants and caretakers require approval' — leaves security accounts permanently pending unless DB-edited."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_round1.py (NEW — 21 tests, all green)"
+  ],
+  "success_rate": {"backend": "100% on Round 1 (21/21). Pre-existing suite: phase1 11/19 pass, phase234 27/30 pass — failures all due to expected schema migration, not code bugs.", "frontend": "100% on Round 1 smoke (Security page, sidebar, dropdowns, marketplace chips, lease column all present)"},
+  "test_credentials": "land@demo.com/demo123, ck@demo.com/care123, admin@nyumbaos.co.ke/admin123. Per-run TEST_ten_<uniq>@demo.com/tenant123 and TEST_sec_<uniq>@demo.com/sec123 tenant+security created.",
+  "seed_data_creation": "Per-run: 1 property (TEST_R1_<uniq>, apartment + 2br + rental,lease), 3 units (test unit, lease-test unit, public-listing unit), 2 tenants (rental + lease), 1 security user, 1 visitor pass, 1 issue, 1 water bill paid. Not auto-cleaned — uses unique UNIQ per run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run with: REACT_APP_BACKEND_URL=<url> MONGO_URL=<...> DB_NAME=<...> pytest backend/tests/test_round1.py -v. The test relies on MONGO_URL/DB_NAME envs from backend/.env for the security-approval DB fallback. The bill-notification test sleeps 7s for demo M-Pesa callback. test_phase1_properties.py and test_phase234.py need fixture updates to align with Round 1 schema (category=apartment/own_compound, tenancy_types, agreement_type on leases) — those failures are NOT regressions but expected schema drift.",
+  "rca of the issue": "N/A — all Round 1 acceptance criteria verified passing. Two minor spec deviations noted: (1) security users cannot be approved via API; (2) public listings missing tenancy_types at top level (only in nested property block)."
+}

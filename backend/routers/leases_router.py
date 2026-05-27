@@ -35,9 +35,11 @@ def _build_pdf(lease: dict, landlord: dict, tenant: dict, prop: dict, unit: dict
     h2 = ParagraphStyle("h2", parent=styles["Heading2"], fontSize=12, spaceAfter=6, textColor=colors.HexColor("#444"))
     body = ParagraphStyle("body", parent=styles["BodyText"], fontSize=10, leading=14)
 
+    is_rental = (lease.get("agreement_type") or "lease") == "rental"
+    title = "RENTAL AGREEMENT" if is_rental else "RESIDENTIAL LEASE AGREEMENT"
     story = [
-        Paragraph("RESIDENTIAL LEASE AGREEMENT", h1),
-        Paragraph(f"Lease ID: <b>{lease['id'][:8]}</b> · Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", body),
+        Paragraph(title, h1),
+        Paragraph(f"Document ID: <b>{lease['id'][:8]}</b> · Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", body),
         Spacer(1, 12),
         Paragraph("PARTIES", h2),
     ]
@@ -128,6 +130,16 @@ async def create_lease(payload: LeaseCreate, user: dict = Depends(require_role("
         raise HTTPException(404, "Tenant not found")
     prop = await db["properties"].find_one({"id": unit["property_id"]})
 
+    # Validate agreement_type matches property's tenancy_types
+    if prop:
+        allowed = prop.get("tenancy_types") or ["rental"]
+        if payload.agreement_type not in allowed:
+            raise HTTPException(
+                400,
+                f"This property only supports: {', '.join(allowed)}. "
+                f"You picked agreement_type='{payload.agreement_type}'.",
+            )
+
     lease_id = new_id()
     lease_doc = {
         "id": lease_id,
@@ -136,6 +148,7 @@ async def create_lease(payload: LeaseCreate, user: dict = Depends(require_role("
         "tenant_name": tenant["full_name"],
         "unit_id": payload.unit_id,
         "property_id": unit["property_id"],
+        "agreement_type": payload.agreement_type,
         "rent_amount": payload.rent_amount,
         "deposit_amount": payload.deposit_amount,
         "start_date": payload.start_date,
@@ -157,10 +170,11 @@ async def create_lease(payload: LeaseCreate, user: dict = Depends(require_role("
     await db["leases"].insert_one(lease_doc)
     lease_doc.pop("_id", None)
 
+    doc_label = "Rental Agreement" if payload.agreement_type == "rental" else "Lease Agreement"
     await notify_user(
         payload.tenant_id, "lease_pending",
-        "New lease awaiting your e-signature",
-        f"Your landlord has sent a lease for unit {unit.get('unit_number','')}. Open and sign in-app.",
+        f"New {doc_label.lower()} awaiting your e-signature",
+        f"Your landlord has sent a {doc_label.lower()} for unit {unit.get('unit_number','')}. Open and sign in-app.",
         link="/leases",
     )
     return lease_doc

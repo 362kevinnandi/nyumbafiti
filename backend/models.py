@@ -13,7 +13,7 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 
-Role = Literal["landlord", "tenant", "caretaker", "prospect", "admin"]
+Role = Literal["landlord", "tenant", "caretaker", "prospect", "admin", "security"]
 BillType = Literal["rent", "water", "electricity", "service", "other"]
 BillStatus = Literal["pending", "partial", "paid", "overdue"]
 PaymentStatus = Literal["pending", "succeeded", "failed", "cancelled", "refunded"]
@@ -22,16 +22,22 @@ IssuePriority = Literal["low", "medium", "high", "urgent"]
 ViewingStatus = Literal["pending_payment", "scheduled", "completed", "cancelled"]
 PayoutStatus = Literal["pending", "paid"]
 ApprovalStatus = Literal["pending", "approved", "rejected"]
-PropertyCategory = Literal[
-    "apartment", "bedsitter", "single_room", "self_contained",
-    "standalone", "compound", "airbnb",
+# Phase-5 simplified property taxonomy
+PropertyCategory = Literal["apartment", "own_compound"]
+PropertySubType = Literal[
+    "bedsitter", "single_room", "1br", "2br", "3br", "4br", "5br_plus",
 ]
-PROPERTY_CATEGORIES = (
-    "apartment", "bedsitter", "single_room", "self_contained",
-    "standalone", "compound", "airbnb",
+PROPERTY_CATEGORIES = ("apartment", "own_compound")
+PROPERTY_SUB_TYPES = (
+    "bedsitter", "single_room", "1br", "2br", "3br", "4br", "5br_plus",
 )
+TenancyType = Literal["rental", "lease"]
+TENANCY_TYPES = ("rental", "lease")
 VIEWING_FEE_KES = 200
 DEFAULT_COMMISSION_RATE = 0.035  # 3.5%
+# Phase-5 yard sale monetization
+YARD_SALE_CONTACT_UNLOCK_KES = 35
+YARD_SALE_BROADCAST_FEE_KES = 50
 
 
 # ============ USER ============
@@ -72,6 +78,8 @@ class PropertyCreate(BaseModel):
     address: str
     description: Optional[str] = ""
     category: Optional[PropertyCategory] = "apartment"
+    sub_type: Optional[PropertySubType] = None
+    tenancy_types: List[TenancyType] = ["rental"]
 
 
 class PropertyUpdate(BaseModel):
@@ -79,6 +87,8 @@ class PropertyUpdate(BaseModel):
     address: Optional[str] = None
     description: Optional[str] = None
     category: Optional[PropertyCategory] = None
+    sub_type: Optional[PropertySubType] = None
+    tenancy_types: Optional[List[TenancyType]] = None
     featured: Optional[bool] = None
 
 
@@ -89,6 +99,8 @@ class Property(BaseModel):
     address: str
     description: Optional[str] = ""
     category: PropertyCategory = "apartment"
+    sub_type: Optional[PropertySubType] = None
+    tenancy_types: List[TenancyType] = ["rental"]
     featured: bool = False
     images: List[str] = []
     units_count: int = 0
@@ -119,9 +131,17 @@ class TenantCreate(BaseModel):
     phone: str
     password: str = Field(min_length=6)
     unit_id: str
+    tenancy_type: TenancyType = "rental"
 
 
 class CaretakerCreate(BaseModel):
+    email: EmailStr
+    full_name: str
+    phone: str
+    password: str = Field(min_length=6)
+
+
+class SecurityCreate(BaseModel):
     email: EmailStr
     full_name: str
     phone: str
@@ -369,6 +389,7 @@ class YardSaleUpdate(BaseModel):
 
 # ============ PHASE 4: LEASES ============
 LeaseStatus = Literal["draft", "sent", "signed", "cancelled"]
+AgreementType = Literal["rental", "lease"]
 
 
 class LeaseCreate(BaseModel):
@@ -379,6 +400,7 @@ class LeaseCreate(BaseModel):
     start_date: str  # YYYY-MM-DD
     end_date: str
     terms: str = ""
+    agreement_type: AgreementType = "lease"
 
 
 class Lease(BaseModel):
@@ -388,6 +410,7 @@ class Lease(BaseModel):
     tenant_name: str
     unit_id: str
     property_id: str
+    agreement_type: AgreementType = "lease"
     rent_amount: float
     deposit_amount: float
     start_date: str
