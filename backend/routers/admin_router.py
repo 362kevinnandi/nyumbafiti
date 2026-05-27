@@ -200,6 +200,7 @@ async def suspend_user(
 class UserResetCredentials(BaseModel):
     new_password: str | None = None
     new_email: str | None = None
+    generate_password: bool = False  # explicit opt-in to avoid accidental password rotation
     reason: str = ""
 
 
@@ -243,14 +244,13 @@ async def reset_credentials(
             raise HTTPException(400, "Password must be at least 6 characters")
         plaintext_pw = payload.new_password
         updates["password_hash"] = hash_password(plaintext_pw)
-    elif payload.new_password == "" or payload.new_password is None:
-        # Generate one if either explicitly empty string OR completely omitted but new_email also omitted
-        if not payload.new_email:
-            plaintext_pw = _generate_password()
-            updates["password_hash"] = hash_password(plaintext_pw)
+    elif payload.generate_password:
+        # Explicit opt-in to auto-generate
+        plaintext_pw = _generate_password()
+        updates["password_hash"] = hash_password(plaintext_pw)
 
     if len(updates) == 1:  # only updated_at
-        raise HTTPException(400, "Provide new_email and/or new_password")
+        raise HTTPException(400, "Provide new_email, new_password, or generate_password=true")
 
     try:
         await db["users"].update_one({"id": user_id}, {"$set": updates})

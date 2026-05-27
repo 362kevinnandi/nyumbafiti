@@ -56,6 +56,7 @@ class UserPublic(UserBase):
     id: str
     landlord_id: Optional[str] = None
     unit_id: Optional[str] = None
+    tenancy_type: Optional[TenancyType] = None
     approval_status: Optional[ApprovalStatus] = None
     suspended: Optional[bool] = False
     created_at: str

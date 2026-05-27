@@ -123,7 +123,7 @@ class TestAdminResetCredentials:
 
         # Reset with generate flag (no new_password)
         r2 = requests.post(f"{API}/admin/users/{uid}/reset-credentials",
-                           json={"reset_password": True}, headers=_h(admin_token), timeout=30)
+                           json={"generate_password": True}, headers=_h(admin_token), timeout=30)
         assert r2.status_code == 200, r2.text
         body = r2.json()
         new_pwd = body.get("new_password") or body.get("password")
@@ -161,7 +161,7 @@ class TestAdminResetCredentials:
         users = r.json()
         uid = users[0].get("id") or users[0].get("_id")
         r2 = requests.post(f"{API}/admin/users/{uid}/reset-credentials",
-                           json={"reset_password": True}, headers=_h(landlord_token), timeout=30)
+                           json={"generate_password": True}, headers=_h(landlord_token), timeout=30)
         assert r2.status_code == 403, f"Expected 403 for non-admin, got {r2.status_code}"
 
     def test_reset_self_400(self, admin_token):
@@ -170,7 +170,7 @@ class TestAdminResetCredentials:
         me = r.json()
         uid = me.get("id") or me.get("_id")
         r2 = requests.post(f"{API}/admin/users/{uid}/reset-credentials",
-                           json={"reset_password": True}, headers=_h(admin_token), timeout=30)
+                           json={"generate_password": True}, headers=_h(admin_token), timeout=30)
         assert r2.status_code == 400, f"Expected 400 for self-reset, got {r2.status_code}"
 
     def test_audit_log_admin_only(self, admin_token, landlord_token):
@@ -338,3 +338,102 @@ class TestAdminExports:
     def test_export_non_admin_403(self, landlord_token):
         r = requests.get(f"{API}/admin/export/users.csv", headers=_h(landlord_token), timeout=30)
         assert r.status_code == 403, f"Expected 403, got {r.status_code}"
+
+
+# ============== 7. FIX VERIFICATION: reset-credentials extras ==============
+class TestResetCredentialsFixes:
+    def _create_target(self, landlord_token, suffix=None):
+        suffix = suffix or uuid.uuid4().hex[:6]
+        email = f"fixtarget_{suffix}@demo.nyumba"
+        r = requests.post(f"{API}/security", json={
+            "full_name": f"TEST_FIX_{suffix}",
+            "email": email,
+            "phone": "+254700121212",
+            "password": "InitPass123",
+        }, headers=_h(landlord_token), timeout=30)
+        assert r.status_code in (200, 201), r.text
+        user = (r.json().get("user") or r.json())
+        return user.get("id") or user.get("_id"), email
+
+    def test_reset_empty_body_400_exact_message(self, admin_token, landlord_token):
+        uid, _ = self._create_target(landlord_token)
+        r = requests.post(f"{API}/admin/users/{uid}/reset-credentials",
+                          json={}, headers=_h(admin_token), timeout=30)
+        assert r.status_code == 400, f"Expected 400, got {r.status_code}: {r.text}"
+        # Verify message mentions the three options
+        detail = (r.json().get("detail") or "").lower()
+        assert "new_email" in detail or "generate_password" in detail or "new_password" in detail, \
+            f"400 message missing field hints: {detail}"
+
+    def test_reset_only_new_email_no_password_change(self, admin_token, landlord_token):
+        uid, old_email = self._create_target(landlord_token)
+        new_email = old_email.replace("fixtarget_", "fixrenamed_")
+        r = requests.post(f"{API}/admin/users/{uid}/reset-credentials",
+                          json={"new_email": new_email}, headers=_h(admin_token), timeout=30)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        # No new password in response
+        assert not body.get("new_password"), f"Should NOT return new_password for email-only reset: {body}"
+        # Old password still works
+        t = _login(new_email, "InitPass123")
+        assert t
+
+    def test_reset_idempotency_twice(self, admin_token, landlord_token):
+        uid, email = self._create_target(landlord_token)
+        # 1st reset
+        r1 = requests.post(f"{API}/admin/users/{uid}/reset-credentials",
+                           json={"generate_password": True}, headers=_h(admin_token), timeout=30)
+        assert r1.status_code == 200, r1.text
+        pwd1 = r1.json().get("new_password")
+        assert pwd1
+        t1 = _login(email, pwd1)
+        assert t1
+        # 2nd reset (different pwd, still works)
+        r2 = requests.post(f"{API}/admin/users/{uid}/reset-credentials",
+                           json={"generate_password": True}, headers=_h(admin_token), timeout=30)
+        assert r2.status_code == 200, r2.text
+        pwd2 = r2.json().get("new_password")
+        assert pwd2 and pwd2 != pwd1
+        t2 = _login(email, pwd2)
+        assert t2
+        # Old password no longer works
+        r_bad = requests.post(f"{API}/auth/login",
+                              json={"email": email, "password": pwd1}, timeout=30)
+        assert r_bad.status_code in (400, 401, 403), f"Old pwd should be invalid: {r_bad.status_code}"
+
+
+# ============== 8. FIX VERIFICATION: tenancy_type exposed on /auth ==============
+class TestTenancyTypeExposed:
+    def test_lease_tenant_login_has_tenancy_type_lease(self):
+        r = requests.post(f"{API}/auth/login",
+                          json={"email": TENANT_LEASE_EMAIL, "password": TENANT_PASS}, timeout=30)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        user = body.get("user") or {}
+        assert user.get("tenancy_type") == "lease", \
+            f"Expected tenancy_type=lease for tenant4 login, got: {user.get('tenancy_type')} (full user: {user})"
+
+    def test_rental_tenant_login_has_tenancy_type_rental(self):
+        r = requests.post(f"{API}/auth/login",
+                          json={"email": TENANT_RENTAL_EMAIL, "password": TENANT_PASS}, timeout=30)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        user = body.get("user") or {}
+        assert user.get("tenancy_type") == "rental", \
+            f"Expected tenancy_type=rental for tenant1 login, got: {user.get('tenancy_type')}"
+
+    def test_lease_tenant_me_has_tenancy_type(self):
+        token = _login(TENANT_LEASE_EMAIL, TENANT_PASS)
+        r = requests.get(f"{API}/auth/me", headers=_h(token), timeout=30)
+        assert r.status_code == 200, r.text
+        me = r.json()
+        assert me.get("tenancy_type") == "lease", \
+            f"Expected /auth/me tenancy_type=lease, got: {me.get('tenancy_type')} (full me: {me})"
+
+    def test_rental_tenant_me_has_tenancy_type(self):
+        token = _login(TENANT_RENTAL_EMAIL, TENANT_PASS)
+        r = requests.get(f"{API}/auth/me", headers=_h(token), timeout=30)
+        assert r.status_code == 200, r.text
+        me = r.json()
+        assert me.get("tenancy_type") == "rental", \
+            f"Expected /auth/me tenancy_type=rental, got: {me.get('tenancy_type')}"

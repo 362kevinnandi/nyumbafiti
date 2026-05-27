@@ -62,7 +62,7 @@ export default function AdminUsersPage() {
       const body = { reason: resetForm.reason };
       if (resetForm.new_email.trim()) body.new_email = resetForm.new_email.trim();
       if (resetForm.new_password.trim()) body.new_password = resetForm.new_password.trim();
-      else if (!resetForm.new_email.trim()) body.new_password = ""; // signal "generate"
+      else if (!resetForm.new_email.trim()) body.generate_password = true; // explicit opt-in
       const r = await api.post(`/admin/users/${resetTarget.id}/reset-credentials`, body);
       setResetResult(r.data);
       // Auto-copy generated password to clipboard

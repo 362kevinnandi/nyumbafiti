@@ -1,0 +1,32 @@
+{
+  "summary": "Re-test of two HIGH-priority Round 4 fixes from iter_11 + quick regression. BACKEND 26/26 pass (was 18/19): FIX 1 reset-credentials now correctly returns 400 on empty body with message 'Provide new_email, new_password, or generate_password=true', {generate_password:true} returns 200 + new_password, only {new_email:...} returns 200 with NO new_password (old pwd still works), 2x idempotent reset works (each issues a fresh password, old one invalidated). FIX 2 UserPublic now exposes tenancy_type — verified via /api/auth/login response AND /api/auth/me for both tenant1(rental) and tenant4(lease). FRONTEND: AppShell sidebar dynamic label correctly shows 'Lease Agreement' for tenant4 and 'Rental Agreement' for tenant1. Round 4 regression sample (security auto-approve, public/pass/{token}, marketplace lease/rental filter, all 24 admin export combos 200, yard-sale forced KES 35 STK flow ends active+contact_unlocked in <25s) all still pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_round4.py",
+    "/app/test_reports/pytest/round4_iter12_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "admin_router.reset_credentials now matches spec — empty body raises 400 with the documented message. Clean fix.",
+    "models.UserPublic.tenancy_type is Optional[TenancyType] — backend correctly populates it for both rental and lease tenants. Confirmed in /auth/login + /auth/me.",
+    "AppShell.jsx line 85 conditional `user.tenancy_type === 'lease' ? 'Lease Agreement' : 'Rental Agreement'` works as intended now that tenancy_type is in the auth payload."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_round4.py (renamed flag reset_password -> generate_password in 3 existing tests; added TestResetCredentialsFixes class with 3 new tests covering empty-body message, email-only no-password-change, idempotency; added TestTenancyTypeExposed class with 4 tests covering /auth/login + /auth/me for lease + rental tenants)"
+  ],
+  "success_rate": {"backend": "100% (26/26)", "frontend": "100% (2/2 sidebar checks)"},
+  "test_credentials": "admin@nyumbaos.co.ke/admin123, mary@demo.nyumba/demo123, tenant1..4@demo.nyumba/demo123, sg1/sg2@demo.nyumba/demo123. Demo creds untouched — fix-target users created via /api/security with prefix TEST_FIX_* / TEST_SG_* etc.",
+  "seed_data_creation": "Throwaway security users created for reset tests (TEST_FIX_*, TEST_RT_*, TEST_EM_*, TEST_EB_*) and 3-4 yard-sale TEST listings. All persisted in DB but prefixed for easy cleanup.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Both HIGH-priority bugs from iter_11 are now fixed and verified. test_round4.py is the canonical Round 4 regression (26 tests across 8 classes). For reset-credentials use generate_password:true (NOT reset_password). /api/auth/login response shape: {access_token, token_type, user:{...tenancy_type...}}. /api/auth/me returns the UserPublic shape directly with tenancy_type. AppShell sidebar uses user.tenancy_type from the AuthContext for the dynamic Lease/Rental Agreement label.",
+  "rca of the issue": "Both prior HIGH-priority issues fully resolved. FIX 1 RCA: admin_router.UserResetCredentials gained explicit `generate_password: bool = False` field; the silent auto-generate branch is now guarded by `elif payload.generate_password:` and the fall-through `else` raises 400 with the spec-aligned message. FIX 2 RCA: models.UserPublic added `tenancy_type: Optional[TenancyType] = None` (line 59) and auth_router populates it from the user record; AppShell.jsx already had the correct conditional — it just lacked data. End-to-end now works."
+}
