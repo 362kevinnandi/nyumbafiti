@@ -48,6 +48,8 @@ export default function PropertiesPage() {
     category: "apartment",
     sub_type: "",
     tenancy_types: ["rental"],
+    landlord_paybill: "",
+    landlord_account_number: "",
   });
   const [editId, setEditId] = useState(null);
 
@@ -64,7 +66,7 @@ export default function PropertiesPage() {
   useEffect(() => { load(); }, [load]);
 
   const resetForm = () => {
-    setForm({ name: "", address: "", description: "", category: "apartment", sub_type: "", tenancy_types: ["rental"] });
+    setForm({ name: "", address: "", description: "", category: "apartment", sub_type: "", tenancy_types: ["rental"], landlord_paybill: "", landlord_account_number: "" });
     setImages([]);
     setEditId(null);
   };
@@ -78,6 +80,8 @@ export default function PropertiesPage() {
       category: p.category || "apartment",
       sub_type: p.sub_type || "",
       tenancy_types: (p.tenancy_types && p.tenancy_types.length) ? p.tenancy_types : ["rental"],
+      landlord_paybill: p.landlord_paybill || "",
+      landlord_account_number: p.landlord_account_number || "",
     });
     setImages([]);
     setOpen(true);
@@ -107,6 +111,8 @@ export default function PropertiesPage() {
           category: form.category,
           sub_type: form.sub_type || null,
           tenancy_types: form.tenancy_types,
+          landlord_paybill: form.landlord_paybill,
+          landlord_account_number: form.landlord_account_number,
         });
         toast.success("Property updated");
       } else {
@@ -117,6 +123,8 @@ export default function PropertiesPage() {
         formData.append("category", form.category);
         if (form.sub_type) formData.append("sub_type", form.sub_type);
         formData.append("tenancy_types", form.tenancy_types.join(","));
+        formData.append("landlord_paybill", form.landlord_paybill);
+        formData.append("landlord_account_number", form.landlord_account_number);
         images.forEach((image) => formData.append("images", image));
         await api.post("/properties", formData, {
           headers: { "Content-Type": "multipart/form-data" },
@@ -239,6 +247,22 @@ export default function PropertiesPage() {
                     </div>
                   </div>
                   <div><Label className="overline">Description</Label><Input value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} className="mt-1" /></div>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3 space-y-2.5" data-testid="property-landlord-paybill-block">
+                    <div className="overline text-emerald-800">Rent payment routing (your own M-Pesa)</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="overline text-[10px]">Your paybill</Label>
+                        <Input value={form.landlord_paybill} onChange={(e) => setForm({ ...form, landlord_paybill: e.target.value })} placeholder="e.g. 522522" className="mt-1 font-mono-num h-9" data-testid="property-landlord-paybill" />
+                      </div>
+                      <div>
+                        <Label className="overline text-[10px]">Account number</Label>
+                        <Input value={form.landlord_account_number} onChange={(e) => setForm({ ...form, landlord_account_number: e.target.value })} placeholder="e.g. WESTLANDS-1A" className="mt-1 font-mono-num h-9" data-testid="property-landlord-account" />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-emerald-900/80 leading-snug">
+                      Tenants pay rent directly to <strong>your</strong> M-Pesa Paybill above. NyumbaOS charges them a separate 2.5% service fee via STK push to our platform paybill.
+                    </p>
+                  </div>
                   {!editId && (
                     <div>
                       <Label className="overline">Property Images (Max 5)</Label>

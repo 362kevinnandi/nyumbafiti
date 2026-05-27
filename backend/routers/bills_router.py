@@ -45,6 +45,18 @@ async def list_bills(user: dict = Depends(get_current_user)):
         if new_status != b["status"]:
             await db["bills"].update_one({"id": b["id"]}, {"$set": {"status": new_status}})
             b["status"] = new_status
+    # Attach landlord paybill info from the property — tenants need it to pay rent manually
+    if bills:
+        prop_ids = list({b["property_id"] for b in bills})
+        props = await db["properties"].find(
+            {"id": {"$in": prop_ids}}, {"_id": 0, "id": 1, "landlord_paybill": 1, "landlord_account_number": 1, "name": 1}
+        ).to_list(1000)
+        p_map = {p["id"]: p for p in props}
+        for b in bills:
+            p = p_map.get(b["property_id"], {})
+            b["landlord_paybill"] = p.get("landlord_paybill", "")
+            b["landlord_account_number"] = p.get("landlord_account_number", "")
+            b["property_name"] = p.get("name", "")
     # attach unit / tenant info for landlord view
     if user["role"] == "landlord" and bills:
         unit_ids = list({b["unit_id"] for b in bills})

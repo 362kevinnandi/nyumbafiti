@@ -4,6 +4,7 @@ import logging
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from auth import get_current_user, require_role
 from db import get_db
@@ -78,6 +79,27 @@ async def _process_callback_payload(payload: dict):
             {"id": payment["viewing_id"]},
             {"$set": {"status": "scheduled", "updated_at": now_iso()}},
         )
+        # Record a virtual ledger entry: caretaker is owed KES 150, platform keeps KES 50
+        try:
+            v = await db["viewings"].find_one({"id": payment["viewing_id"]})
+            settings = await db["platform_settings"].find_one({"id": "default"}, {"_id": 0}) or {}
+            ck_share = float(settings.get("viewing_caretaker_share", 150.0))
+            pl_share = float(settings.get("viewing_platform_share", 50.0))
+            await db["disbursement_ledger"].insert_one({
+                "id": new_id(),
+                "payment_id": payment["id"],
+                "viewing_id": payment["viewing_id"],
+                "landlord_id": v.get("landlord_id") if v else None,
+                "property_id": v.get("property_id") if v else None,
+                "gross_amount": float(payment["amount"]),
+                "platform_share": pl_share,
+                "caretaker_share": ck_share,
+                "status": "pending",  # admin marks 'paid' after disbursing via M-Pesa portal
+                "kind": "viewing_caretaker",
+                "created_at": now_iso(),
+            })
+        except Exception as exc:
+            logger.warning("Could not record disbursement ledger entry for viewing: %s", exc)
         # Phase 5: auto-issue a 24h visitor pass to the prospect for the property they booked
         try:
             v = await db["viewings"].find_one({"id": payment["viewing_id"]})
@@ -175,35 +197,74 @@ async def _process_callback_payload(payload: dict):
     elif payment.get("bill_id"):
         bill = await db["bills"].find_one({"id": payment["bill_id"]})
         if bill:
-            new_paid = bill["amount_paid"] + confirmed_amount
-            status = "paid" if new_paid >= bill["amount"] else "partial"
-            await db["bills"].update_one(
-                {"id": bill["id"]},
-                {"$set": {"amount_paid": new_paid, "status": status}},
-            )
-            bill_type_label = (bill.get("bill_type") or "rent").replace("_", " ").title()
-            receipt = update.get("mpesa_receipt", "") or ""
             from notifications import notify_user
-            if payment.get("tenant_id"):
-                await notify_user(
-                    payment["tenant_id"], "payment_succeeded",
-                    f"{bill_type_label} bill paid · KES {confirmed_amount:,.0f}",
-                    f"M-Pesa receipt {receipt}. Bill is now {status}.",
-                    link="/payments",
+            purpose = payment.get("purpose")
+            if purpose == "bill_service_fee":
+                # Fee STK confirmed — bill stays pending; tenant still needs to submit rent receipt
+                await db["bills"].update_one(
+                    {"id": bill["id"]},
+                    {"$set": {
+                        "service_fee_paid_at": now_iso(),
+                        "service_fee_amount": float(payment["amount"]),
+                        "service_fee_payment_id": payment["id"],
+                        "status": "awaiting_rent_receipt",
+                    }},
                 )
-            if payment.get("landlord_id"):
-                await notify_user(
-                    payment["landlord_id"], "payment_succeeded",
-                    f"{bill_type_label} payment received · KES {confirmed_amount:,.0f}",
-                    f"From tenant (receipt {receipt}). Bill is now {status}.",
-                    link="/payments",
+                if payment.get("tenant_id"):
+                    await notify_user(
+                        payment["tenant_id"], "payment_succeeded",
+                        f"Service fee paid · KES {confirmed_amount:,.0f}",
+                        "Now pay the rent to your landlord's M-Pesa paybill, then enter the receipt code in the app.",
+                        link="/bills",
+                    )
+            else:
+                # Legacy direct-pay flow (kept for safety)
+                new_paid = bill.get("amount_paid", 0) + confirmed_amount
+                status = "paid" if new_paid >= bill["amount"] else "partial"
+                await db["bills"].update_one(
+                    {"id": bill["id"]},
+                    {"$set": {"amount_paid": new_paid, "status": status}},
                 )
+                receipt = update.get("mpesa_receipt", "") or ""
+                if payment.get("tenant_id"):
+                    await notify_user(
+                        payment["tenant_id"], "payment_succeeded",
+                        f"Payment received · KES {confirmed_amount:,.0f}",
+                        f"M-Pesa receipt {receipt}. Bill is now {status}.",
+                        link="/payments",
+                    )
+                if payment.get("landlord_id"):
+                    await notify_user(
+                        payment["landlord_id"], "payment_succeeded",
+                        f"Payment received · KES {confirmed_amount:,.0f}",
+                        f"From tenant (receipt {receipt}). Bill is now {status}.",
+                        link="/payments",
+                    )
+
+
+def _round_up_to_10(x: float) -> int:
+    """Round up to the nearest 10 KES so service-fee amounts look clean (250, 310, 530 ...)."""
+    import math
+    return int(math.ceil(x / 10.0) * 10)
+
+
+async def _get_settings_value(db, key: str, fallback):
+    s = await db["platform_settings"].find_one({"id": "default"}, {"_id": 0}) or {}
+    return s.get(key, fallback)
 
 
 @router.post("/payments/mpesa/stk-push")
 async def initiate_payment(
     payload: PaymentInitiate, user: dict = Depends(require_role("tenant"))
 ):
+    """Tenant initiates payment for a bill.
+
+    Flow (Option 1b):
+    1. Tenant manually pays the *rent amount* via M-Pesa to the landlord's paybill (shown in the UI).
+    2. This endpoint STK-pushes ONLY the 2.5% service fee (rounded up to KES 10) to the PLATFORM paybill.
+    3. The bill remains pending until tenant submits the rent receipt (POST /bills/{id}/submit-rent-receipt)
+       AND the landlord/caretaker confirms it (POST /bills/{id}/confirm-rent-receipt).
+    """
     db = get_db()
     if user.get("approval_status") == "pending":
         raise HTTPException(
@@ -211,46 +272,48 @@ async def initiate_payment(
             "Your account is pending admin verification. You cannot make payments yet — please contact your landlord or platform admin.",
         )
     if user.get("approval_status") == "rejected":
-        raise HTTPException(
-            403,
-            "Your account has been rejected by platform admin. Please contact support.",
-        )
+        raise HTTPException(403, "Your account has been rejected by platform admin. Please contact support.")
     bill = await db["bills"].find_one({"id": payload.bill_id, "tenant_id": user["id"]})
     if not bill:
         raise HTTPException(404, "Bill not found")
     if bill["status"] == "paid":
         raise HTTPException(400, "Bill is already paid")
+    if bill.get("service_fee_paid_at"):
+        raise HTTPException(400, "Service fee already paid for this bill — submit your rent receipt next")
 
-    amount = payload.amount or (bill["amount"] - bill["amount_paid"])
-    if amount <= 0:
-        raise HTTPException(400, "Invalid amount")
+    # Compute service fee
+    service_fee_pct = float(await _get_settings_value(db, "service_fee_pct", 0.025))
+    rent_amount = float(bill["amount"]) - float(bill.get("amount_paid", 0) or 0)
+    service_fee = _round_up_to_10(rent_amount * service_fee_pct)
+    if service_fee <= 0:
+        raise HTTPException(400, "Computed service fee is zero")
 
     phone = normalize_phone(payload.phone_number)
     if not (phone.startswith("254") and len(phone) == 12 and phone.isdigit()):
         raise HTTPException(400, "Phone must be in format 2547XXXXXXXX")
 
     payment_id = new_id()
-    idempotency_key = f"{payload.bill_id}-{payment_id}"
-
     payment_doc = {
         "id": payment_id,
         "bill_id": bill["id"],
         "tenant_id": user["id"],
         "landlord_id": bill["landlord_id"],
-        "amount": amount,
+        "amount": float(service_fee),
         "phone_number": phone,
         "status": "pending",
+        "purpose": "bill_service_fee",
+        "rent_amount": rent_amount,           # store the underlying rent so admin can reconcile
+        "service_fee_pct": service_fee_pct,
         "checkout_request_id": None,
         "merchant_request_id": None,
         "mpesa_receipt": None,
         "result_desc": None,
-        "idempotency_key": idempotency_key,
+        "idempotency_key": f"{payload.bill_id}-fee-{payment_id}",
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
     await db["payments"].insert_one(payment_doc)
 
-    # construct callback URL (best effort)
     callback_base = os.environ.get("MPESA_CALLBACK_BASE_URL", "")
     callback_secret = os.environ.get("MPESA_CALLBACK_SECRET", "secret")
     callback_url = f"{callback_base}/api/payments/mpesa/callback/{callback_secret}"
@@ -259,9 +322,9 @@ async def initiate_payment(
     try:
         resp = await stk_push(
             phone=phone,
-            amount=amount,
-            account_ref=f"BILL-{bill['id'][:8]}",
-            description=f"{bill['bill_type'].title()} {bill['period']}",
+            amount=float(service_fee),
+            account_ref=f"FEE-{bill['id'][:8]}",
+            description=f"Fee {bill['bill_type'][:6]} {bill['period']}",
             callback_url=callback_url,
         )
     except Exception as exc:
@@ -273,28 +336,154 @@ async def initiate_payment(
 
     await db["payments"].update_one(
         {"id": payment_id},
-        {
-            "$set": {
-                "checkout_request_id": resp.get("CheckoutRequestID"),
-                "merchant_request_id": resp.get("MerchantRequestID"),
-                "updated_at": now_iso(),
-            }
-        },
+        {"$set": {
+            "checkout_request_id": resp.get("CheckoutRequestID"),
+            "merchant_request_id": resp.get("MerchantRequestID"),
+            "updated_at": now_iso(),
+        }},
     )
 
-    # demo mode: schedule auto-callback
     if should_use_demo_fallback(resp):
-        asyncio.create_task(
-            schedule_demo_callback(resp["CheckoutRequestID"], _process_callback_payload)
-        )
+        asyncio.create_task(schedule_demo_callback(resp["CheckoutRequestID"], _process_callback_payload))
 
+    # Pull landlord paybill info for the UI
+    prop = await db["properties"].find_one({"id": bill["property_id"]}, {"_id": 0}) or {}
     return {
         "payment_id": payment_id,
         "checkout_request_id": resp.get("CheckoutRequestID"),
         "status": "pending",
         "demo_mode": is_demo_mode(),
-        "message": resp.get("CustomerMessage", "STK push sent. Check your phone."),
+        "service_fee_amount": float(service_fee),
+        "rent_amount": rent_amount,
+        "total_cost_to_tenant": rent_amount + float(service_fee),
+        "landlord_paybill": prop.get("landlord_paybill") or "",
+        "landlord_account_number": prop.get("landlord_account_number") or "",
+        "platform_paybill": await _get_settings_value(db, "platform_paybill", "247247"),
+        "platform_account": await _get_settings_value(db, "platform_account", "0740479864"),
+        "message": resp.get("CustomerMessage", "STK push sent — enter PIN to pay the 2.5% service fee."),
     }
+
+
+# ============ Manual rent receipt flow ============
+
+class RentReceiptSubmit(BaseModel):
+    mpesa_receipt: str  # M-Pesa SMS receipt code, e.g. "SGH7XYZ123"
+    amount_paid: float
+
+
+@router.post("/bills/{bill_id}/submit-rent-receipt")
+async def submit_rent_receipt(
+    bill_id: str,
+    payload: RentReceiptSubmit,
+    user: dict = Depends(require_role("tenant")),
+):
+    """Tenant submits the M-Pesa receipt code after paying the landlord directly."""
+    db = get_db()
+    bill = await db["bills"].find_one({"id": bill_id, "tenant_id": user["id"]})
+    if not bill:
+        raise HTTPException(404, "Bill not found")
+    if bill["status"] == "paid":
+        raise HTTPException(400, "Bill is already paid")
+    if not bill.get("service_fee_paid_at"):
+        raise HTTPException(400, "Pay the 2.5% service fee first — landlords trust receipts that come with the fee")
+    if not payload.mpesa_receipt.strip():
+        raise HTTPException(400, "M-Pesa receipt code is required")
+    await db["bills"].update_one(
+        {"id": bill_id},
+        {"$set": {
+            "rent_receipt_code": payload.mpesa_receipt.strip().upper(),
+            "rent_receipt_amount": float(payload.amount_paid),
+            "rent_receipt_submitted_at": now_iso(),
+            "status": "awaiting_landlord_confirmation",
+        }},
+    )
+    # Notify landlord + caretaker so they can confirm
+    from notifications import notify_user
+    await notify_user(
+        bill["landlord_id"], "payment_succeeded",
+        f"Rent receipt submitted — KES {payload.amount_paid:,.0f}",
+        f"Tenant {user['full_name']} submitted M-Pesa receipt {payload.mpesa_receipt}. Please confirm on the Bills page.",
+        link="/bills",
+    )
+    return {"ok": True, "status": "awaiting_landlord_confirmation"}
+
+
+@router.post("/bills/{bill_id}/confirm-rent-receipt")
+async def confirm_rent_receipt(
+    bill_id: str,
+    user: dict = Depends(require_role("landlord", "caretaker", "admin")),
+):
+    """Landlord (or their caretaker) confirms the rent receipt → bill flips to paid."""
+    db = get_db()
+    bill = await db["bills"].find_one({"id": bill_id})
+    if not bill:
+        raise HTTPException(404, "Bill not found")
+    # Auth check
+    if user["role"] == "landlord" and bill["landlord_id"] != user["id"]:
+        raise HTTPException(403, "Not your bill")
+    if user["role"] == "caretaker" and bill["landlord_id"] != user.get("landlord_id"):
+        raise HTTPException(403, "Not your landlord's bill")
+    if not bill.get("rent_receipt_submitted_at"):
+        raise HTTPException(400, "Tenant hasn't submitted the rent receipt yet")
+    if bill["status"] == "paid":
+        return {"ok": True, "status": "paid"}
+    new_paid = float(bill.get("amount_paid", 0)) + float(bill.get("rent_receipt_amount", 0))
+    status = "paid" if new_paid >= float(bill["amount"]) else "partial"
+    await db["bills"].update_one(
+        {"id": bill_id},
+        {"$set": {
+            "amount_paid": new_paid,
+            "status": status,
+            "rent_confirmed_at": now_iso(),
+            "rent_confirmed_by": user["id"],
+            "rent_confirmed_by_role": user["role"],
+        }},
+    )
+    from notifications import notify_user
+    await notify_user(
+        bill["tenant_id"], "payment_succeeded",
+        f"Rent payment confirmed by {user['role']}",
+        f"M-Pesa receipt {bill.get('rent_receipt_code')} was confirmed. Bill #{bill_id[:8]} is now {status}.",
+        link="/bills",
+    )
+    return {"ok": True, "status": status}
+
+
+@router.post("/bills/{bill_id}/reject-rent-receipt")
+async def reject_rent_receipt(
+    bill_id: str,
+    payload: dict,
+    user: dict = Depends(require_role("landlord", "caretaker", "admin")),
+):
+    """Landlord rejects a fishy receipt → status reverts to service_fee_paid so tenant can re-submit."""
+    db = get_db()
+    bill = await db["bills"].find_one({"id": bill_id})
+    if not bill:
+        raise HTTPException(404, "Bill not found")
+    if user["role"] == "landlord" and bill["landlord_id"] != user["id"]:
+        raise HTTPException(403, "Not your bill")
+    if user["role"] == "caretaker" and bill["landlord_id"] != user.get("landlord_id"):
+        raise HTTPException(403, "Not your landlord's bill")
+    reason = (payload or {}).get("reason", "")
+    await db["bills"].update_one(
+        {"id": bill_id},
+        {"$set": {
+            "status": "pending",
+            "rent_receipt_code": None,
+            "rent_receipt_amount": None,
+            "rent_receipt_submitted_at": None,
+            "rent_receipt_rejection": reason,
+            "rent_receipt_rejected_at": now_iso(),
+        }},
+    )
+    from notifications import notify_user
+    await notify_user(
+        bill["tenant_id"], "payment_succeeded",
+        "Rent receipt rejected — please re-submit",
+        f"Landlord rejected receipt for bill #{bill_id[:8]}. Reason: {reason or 'no reason provided'}",
+        link="/bills",
+    )
+    return {"ok": True, "status": "pending"}
 
 
 @router.post("/payments/mpesa/callback/{secret}")

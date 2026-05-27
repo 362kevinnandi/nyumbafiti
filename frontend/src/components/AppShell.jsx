@@ -60,6 +60,7 @@ const NAV_BY_ROLE = {
     { to: "/admin/issues", label: "All Issues", icon: MessageSquare },
     { to: "/admin/payments", label: "All Payments", icon: CreditCard },
     { to: "/admin/payouts", label: "Payouts", icon: Wallet },
+    { to: "/admin/disbursements", label: "Disbursements", icon: Wallet },
     { to: "/admin/moderation", label: "Moderation", icon: ShieldAlert },
     { to: "/leases", label: "All Agreements", icon: FileSignature },
     { to: "/community", label: "Community", icon: Megaphone },

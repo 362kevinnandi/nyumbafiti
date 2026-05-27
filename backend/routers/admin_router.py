@@ -1,4 +1,6 @@
 """Super-admin endpoints: platform-wide visibility, payouts, commission settings."""
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -30,7 +32,23 @@ def compute_commission(amount: float, rate: float) -> dict:
 # ============ Settings ============
 
 class SettingsUpdate(BaseModel):
-    commission_rate: float
+    commission_rate: Optional[float] = None
+    platform_paybill: Optional[str] = None
+    platform_account: Optional[str] = None
+    service_fee_pct: Optional[float] = None
+    viewing_caretaker_share: Optional[float] = None
+    viewing_platform_share: Optional[float] = None
+
+
+DEFAULT_SETTINGS = {
+    "id": "default",
+    "commission_rate": DEFAULT_COMMISSION_RATE,
+    "platform_paybill": "247247",
+    "platform_account": "0740479864",
+    "service_fee_pct": 0.025,  # 2.5%
+    "viewing_caretaker_share": 150.0,
+    "viewing_platform_share": 50.0,
+}
 
 
 @router.get("/settings")
@@ -38,13 +56,17 @@ async def get_settings(_: dict = Depends(require_role("admin"))):
     db = get_db()
     settings = await db["platform_settings"].find_one({"id": "default"}, {"_id": 0})
     if not settings:
-        settings = {
-            "id": "default",
-            "commission_rate": DEFAULT_COMMISSION_RATE,
-            "updated_at": now_iso(),
-        }
+        settings = {**DEFAULT_SETTINGS, "updated_at": now_iso()}
         await db["platform_settings"].insert_one(settings)
         settings.pop("_id", None)
+    # Backfill any new keys missing from older rows
+    changed = False
+    for k, v in DEFAULT_SETTINGS.items():
+        if k not in settings:
+            settings[k] = v
+            changed = True
+    if changed:
+        await db["platform_settings"].update_one({"id": "default"}, {"$set": settings}, upsert=True)
     return settings
 
 
@@ -53,19 +75,28 @@ async def update_settings(
     payload: SettingsUpdate, _: dict = Depends(require_role("admin"))
 ):
     db = get_db()
-    if not (0 <= payload.commission_rate <= 0.5):
+    updates = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None}
+    if "commission_rate" in updates and not (0 <= updates["commission_rate"] <= 0.5):
         raise HTTPException(400, "Commission rate must be between 0 and 0.5 (50%)")
-    await db["platform_settings"].update_one(
-        {"id": "default"},
-        {
-            "$set": {
-                "commission_rate": payload.commission_rate,
-                "updated_at": now_iso(),
-            }
-        },
-        upsert=True,
-    )
+    if "service_fee_pct" in updates and not (0 <= updates["service_fee_pct"] <= 0.5):
+        raise HTTPException(400, "Service fee pct must be between 0 and 0.5 (50%)")
+    if "platform_paybill" in updates and not updates["platform_paybill"].strip().isdigit():
+        raise HTTPException(400, "platform_paybill must be a numeric Safaricom shortcode")
+    updates["updated_at"] = now_iso()
+    await db["platform_settings"].update_one({"id": "default"}, {"$set": updates}, upsert=True)
     return await get_settings(_)
+
+
+@router.get("/public-settings")
+async def public_settings():
+    """Settings safe to expose to all authenticated users (no secrets)."""
+    db = get_db()
+    s = await db["platform_settings"].find_one({"id": "default"}, {"_id": 0}) or DEFAULT_SETTINGS
+    return {
+        "platform_paybill": s.get("platform_paybill", DEFAULT_SETTINGS["platform_paybill"]),
+        "platform_account": s.get("platform_account", DEFAULT_SETTINGS["platform_account"]),
+        "service_fee_pct": s.get("service_fee_pct", DEFAULT_SETTINGS["service_fee_pct"]),
+    }
 
 
 # ============ Platform stats ============
@@ -284,6 +315,61 @@ async def list_audit_log(admin: dict = Depends(require_role("admin"))):
     db = get_db()
     rows = await db["admin_audit_log"].find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
     return rows
+
+
+# ============ Disbursement ledger (viewings → caretakers) ============
+
+@router.get("/disbursements")
+async def list_disbursements(
+    status: Optional[str] = None,
+    admin: dict = Depends(require_role("admin")),
+):
+    db = get_db()
+    q: dict = {}
+    if status:
+        q["status"] = status
+    rows = await db["disbursement_ledger"].find(q, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    # Enrich with landlord + caretaker names
+    landlord_ids = list({r["landlord_id"] for r in rows if r.get("landlord_id")})
+    landlords = {u["id"]: u["full_name"] async for u in db["users"].find({"id": {"$in": landlord_ids}}, {"_id": 0, "id": 1, "full_name": 1})} if landlord_ids else {}
+    for r in rows:
+        r["landlord_name"] = landlords.get(r.get("landlord_id"), "")
+    summary = {
+        "pending_caretaker_total": sum(r["caretaker_share"] for r in rows if r["status"] == "pending"),
+        "paid_caretaker_total": sum(r["caretaker_share"] for r in rows if r["status"] == "paid"),
+        "platform_revenue_viewings": sum(r["platform_share"] for r in rows),
+    }
+    return {"items": rows, "summary": summary}
+
+
+class DisbursementMarkPaid(BaseModel):
+    mpesa_receipt: Optional[str] = ""
+    note: Optional[str] = ""
+
+
+@router.post("/disbursements/{disb_id}/mark-paid")
+async def mark_disbursement_paid(
+    disb_id: str,
+    payload: DisbursementMarkPaid,
+    admin: dict = Depends(require_role("admin")),
+):
+    db = get_db()
+    d = await db["disbursement_ledger"].find_one({"id": disb_id})
+    if not d:
+        raise HTTPException(404, "Disbursement not found")
+    if d.get("status") == "paid":
+        return {"ok": True, "status": "paid"}
+    await db["disbursement_ledger"].update_one(
+        {"id": disb_id},
+        {"$set": {
+            "status": "paid",
+            "paid_at": now_iso(),
+            "paid_by_admin_id": admin["id"],
+            "mpesa_receipt": payload.mpesa_receipt or "",
+            "note": payload.note or "",
+        }},
+    )
+    return {"ok": True, "status": "paid"}
 
 
 # ============ Payments view ============

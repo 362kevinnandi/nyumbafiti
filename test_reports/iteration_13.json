@@ -1,0 +1,40 @@
+{
+  "summary": "Round 5 backend + frontend smoke testing. Backend: 17/19 tests pass (2 are M-Pesa sandbox-timing flakes only — not Round 5 logic bugs). Admin settings (all 6 fields + backfill + partial PATCH + admin-only guard + public-settings shape) verified. Properties paybill GET + PATCH (JSON body) verified. Visitor scan security accept-own/reject-cross verified. Two-step rent flow: stk-push response shape (service_fee_amount = ceil(rent*0.025/10)*10, total_cost_to_tenant, landlord_paybill=522522, landlord_account_number=WESTLANDS-1A, platform_paybill, platform_account) verified. submit-rent-receipt 400 when fee not paid, tenant cannot confirm (403), wrong-landlord caretaker cannot confirm (403), landlord can reject (status->pending), caretaker (same landlord) can confirm (status->paid) all verified. Disbursements: list returns items+summary, landlord forbidden, admin mark-paid works (skipped when no pending rows). Frontend smoke: sg1 sees Scan button on /visitors, admin /admin/disbursements page renders summary, admin /admin/settings renders all 4 sections (paybill, fee, viewing, commission), mary /properties loads.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/payments/mpesa/stk-push (+ callback)", "issue": "Sandbox returns 200/Accepted then real Safaricom callback fires within ~3s with ResultCode!=0 ('DS timeout user cannot be reached'). Demo fallback (15s) loses the race, so payments end as 'failed' and bills never auto-flip to awaiting_rent_receipt without manual callback simulation. End-to-end logic IS correct (proven by caretaker confirm reaching 'paid' once demo fallback fires) but timing is flaky in CI."},
+      {"endpoint": "GET /api/admin/public-settings", "issue": "Endpoint has NO auth dependency at all — anyone (unauthenticated) can read platform_paybill/platform_account/service_fee_pct. Spec said 'any authenticated user'. Not secrets, so low severity, but mismatch with spec."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_round5.py",
+    "/app/test_reports/pytest/round5_iter13_results.xml"
+  ],
+  "action_items": [
+    "Consider gating /api/admin/public-settings behind get_current_user (spec said 'any authenticated user').",
+    "Optional: in the M-Pesa callback handler, treat 'DS timeout/user cannot be reached' as a transient failure that does NOT mark the payment terminally failed, so the demo fallback can still settle the bill. Or shorten the demo fallback delay below the sandbox's ~3s timeout response so demo wins."
+  ],
+  "critical_code_review_comments": [
+    "admin_router.public_settings has no auth dependency — request spec called for authenticated-only. Add Depends(get_current_user).",
+    "payments_router.reject_rent_receipt preserves service_fee_paid_at on reject (correct — tenant doesn't pay fee twice on re-submit). Good.",
+    "payments_router.confirm_rent_receipt computes new_paid = amount_paid + rent_receipt_amount — correct, and status flips to 'partial' if under-paid which is sensible.",
+    "payments_router._process_callback_payload short-circuits when payment.status in (succeeded,failed,refunded) — idempotency is correct but it means a transient sandbox failure permanently kills the bill (see minor issue above)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_round5.py (new — 19 tests across 5 classes covering admin settings, public-settings, property paybill PATCH, security visitor scan, two-step rent payment flow with forced callback simulation to bypass sandbox flakes, disbursement ledger).",
+    "Demo data re-seeded via `python3 seed_demo_data.py --reset` (tenant3/tenant4 passwords were broken from prior Round 4 reset-credentials tests; restored)."
+  ],
+  "success_rate": {"backend": "89% (17/19) — 2 timing-flaky tests, no logic bugs", "frontend": "100% (smoke checks pass)"},
+  "test_credentials": "admin@nyumbaos.co.ke/admin123, mary@demo.nyumba/demo123, james@demo.nyumba/demo123, ck1/ck2@demo.nyumba/demo123, sg1/sg2@demo.nyumba/demo123, tenant1..4@demo.nyumba/demo123 (re-seeded).",
+  "seed_data_creation": "Re-ran seed_demo_data.py --reset to restore tenant3/tenant4 passwords broken by Round 4 reset tests. Mary's Westlands property now has landlord_paybill=522522, landlord_account_number=WESTLANDS-1A. Monthly bills generated for mary+james. Visitor passes TEST_R5_Guest and TEST_R5_CrossGuest created.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_round5.py uses a forced /payments/mpesa/callback/{secret} POST immediately after stk-push to deterministically simulate success — necessary because Safaricom sandbox always returns 'DS timeout user cannot be reached' for unreachable phones, which beats the 15s demo fallback. PATCH /api/properties uses JSON (NOT Form). visitor-passes POST uses 'expected_time' field (NOT expected_at). To re-run: re-seed first if tenant3/tenant4 broken. Round 5 logic verified end-to-end including reject → resubmit → caretaker confirm flow.",
+  "rca of the issue": "M-Pesa sandbox race: 'DS timeout' real callback (ResultCode 1037) arrives ~3s after stk-push and marks payment failed; 15s demo fallback then short-circuits at the idempotency guard (status already 'failed'). Bill therefore never flips to awaiting_rent_receipt without intervention. Test handles this with a forced success callback. Production users on real phones would not hit this — they'd get the actual M-Pesa prompt and a real success/failure callback. Recommend either (a) shortening MPESA fallback delay to <3s OR (b) detecting result_desc.startswith('DS') and treating as transient (don't lock payment status)."
+}

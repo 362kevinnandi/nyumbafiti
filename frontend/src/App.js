@@ -27,6 +27,7 @@ import AdminBillsPage from "@/pages/admin/AdminBills";
 import AdminIssuesPage from "@/pages/admin/AdminIssues";
 import AdminPropertiesPage from "@/pages/admin/AdminProperties";
 import AdminModerationPage from "@/pages/admin/AdminModeration";
+import AdminDisbursementsPage from "@/pages/admin/AdminDisbursements";
 import CommunityPage from "@/pages/Community";
 import YardSalePage from "@/pages/YardSale";
 import YardSaleDetailPage from "@/pages/YardSaleDetail";
@@ -84,6 +85,7 @@ export default function App() {
             <Route path="/admin/issues" element={<RequireAuth roles={["admin"]}><AdminIssuesPage /></RequireAuth>} />
             <Route path="/admin/properties" element={<RequireAuth roles={["admin"]}><AdminPropertiesPage /></RequireAuth>} />
             <Route path="/admin/moderation" element={<RequireAuth roles={["admin"]}><AdminModerationPage /></RequireAuth>} />
+            <Route path="/admin/disbursements" element={<RequireAuth roles={["admin"]}><AdminDisbursementsPage /></RequireAuth>} />
             <Route path="/community" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "security", "admin"]}><CommunityPage /></RequireAuth>} />
             <Route path="/yard-sale" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "security", "admin"]}><YardSalePage /></RequireAuth>} />
             <Route path="/yard-sale/:id" element={<RequireAuth roles={["landlord", "tenant", "caretaker", "security", "admin"]}><YardSaleDetailPage /></RequireAuth>} />

@@ -60,6 +60,8 @@ async def create_property(
     category: str = Form("apartment"),
     sub_type: Optional[str] = Form(None),
     tenancy_types: str = Form("rental"),  # comma-separated: "rental" or "lease" or "rental,lease"
+    landlord_paybill: str = Form(""),
+    landlord_account_number: str = Form(""),
     images: List[UploadFile] = File([]),
     user: dict = Depends(require_role("landlord")),
 ):
@@ -92,6 +94,8 @@ async def create_property(
         "category": category,
         "sub_type": sub_type or None,
         "tenancy_types": tt_list,
+        "landlord_paybill": (landlord_paybill or "").strip(),
+        "landlord_account_number": (landlord_account_number or "").strip(),
         "featured": False,
         "images": image_paths,
         "units_count": 0,

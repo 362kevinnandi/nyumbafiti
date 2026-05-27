@@ -81,6 +81,8 @@ class PropertyCreate(BaseModel):
     category: Optional[PropertyCategory] = "apartment"
     sub_type: Optional[PropertySubType] = None
     tenancy_types: List[TenancyType] = ["rental"]
+    landlord_paybill: Optional[str] = ""        # Landlord's own M-Pesa paybill — tenants pay rent here manually
+    landlord_account_number: Optional[str] = ""  # Account number tenants enter when paying via paybill
 
 
 class PropertyUpdate(BaseModel):
@@ -91,6 +93,8 @@ class PropertyUpdate(BaseModel):
     sub_type: Optional[PropertySubType] = None
     tenancy_types: Optional[List[TenancyType]] = None
     featured: Optional[bool] = None
+    landlord_paybill: Optional[str] = None
+    landlord_account_number: Optional[str] = None
 
 
 class Property(BaseModel):
