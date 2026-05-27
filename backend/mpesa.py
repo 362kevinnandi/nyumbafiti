@@ -83,13 +83,41 @@ def _base_url() -> str:
     )
 
 
+_TOKEN_CACHE: dict = {"token": None, "expires_at": 0.0}
+
+
 async def get_access_token() -> str:
+    """Cache the access token for ~55 min (Safaricom expires it at 3599s).
+
+    Without caching, Safaricom rate-limits the oauth endpoint at ~1/sec and
+    starts returning 429/403 which then surfaces to the user as 'M-Pesa request failed'.
+    """
+    import time
+    now = time.time()
+    if _TOKEN_CACHE.get("token") and _TOKEN_CACHE.get("expires_at", 0) > now:
+        return _TOKEN_CACHE["token"]
     url = f"{_base_url()}/oauth/v1/generate?grant_type=client_credentials"
     auth = (os.environ["MPESA_CONSUMER_KEY"], os.environ["MPESA_CONSUMER_SECRET"])
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(url, auth=auth)
         resp.raise_for_status()
-        return resp.json()["access_token"]
+        data = resp.json()
+        token = data["access_token"]
+        ttl = int(data.get("expires_in", 3599))
+        _TOKEN_CACHE["token"] = token
+        _TOKEN_CACHE["expires_at"] = now + ttl - 30  # refresh 30s before expiry
+        return token
+
+
+def _sanitize_text(s: str, max_len: int) -> str:
+    """Safaricom's XSLT pipeline chokes on ampersands & angle brackets in TransactionDesc + AccountReference.
+
+    Strip anything outside alphanumeric, dash, underscore, space, period — and truncate to max_len.
+    """
+    if not s:
+        return ""
+    cleaned = "".join(c if (c.isalnum() or c in "-_ .") else " " for c in s).strip()
+    return cleaned[:max_len] or "Payment"
 
 
 async def stk_push(
@@ -134,8 +162,8 @@ async def stk_push(
             "PartyB": shortcode,
             "PhoneNumber": phone,
             "CallBackURL": callback_url,
-            "AccountReference": account_ref[:20],
-            "TransactionDesc": (description or "Rental payment")[:13],
+            "AccountReference": _sanitize_text(account_ref, 20),
+            "TransactionDesc": _sanitize_text(description or "Rental payment", 13),
         }
 
         headers = {

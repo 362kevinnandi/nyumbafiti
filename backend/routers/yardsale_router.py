@@ -139,10 +139,20 @@ async def create_listing(
     await db["yard_sale"].insert_one(doc)
 
     # Initiate the KES 35 contact-unlock STK push immediately
-    stk_result = await _initiate_yardsale_payment(
-        lid, phone, YARD_SALE_CONTACT_UNLOCK_KES,
-        "yard_sale_contact", user, "POST", "Unlock & publish",
-    )
+    try:
+        stk_result = await _initiate_yardsale_payment(
+            lid, phone, YARD_SALE_CONTACT_UNLOCK_KES,
+            "yard_sale_contact", user, "POST", "Unlock & publish",
+        )
+    except HTTPException as exc:
+        # Sandbox/network glitch — listing is already saved as pending_payment, surface a friendly retry path
+        doc.pop("_id", None)
+        return {
+            "listing": _mask_contact(doc, user),
+            "payment": None,
+            "stk_error": exc.detail,
+            "message": "Listing saved as draft. M-Pesa was unreachable — open the listing and tap 'Pay to publish' to retry.",
+        }
     doc.pop("_id", None)
     return {
         "listing": _mask_contact(doc, user),
@@ -150,16 +160,45 @@ async def create_listing(
     }
 
 
+@router.post("/yard-sale/listings/{lid}/retry-unlock")
+async def retry_unlock(
+    lid: str,
+    payload: dict,
+    user: dict = Depends(get_current_user),
+):
+    """Re-initiate the KES 35 contact-unlock STK for a listing stuck in pending_payment."""
+    db = get_db()
+    item = await db["yard_sale"].find_one({"id": lid})
+    if not item:
+        raise HTTPException(404, "Listing not found")
+    if user["role"] != "admin" and item["seller_id"] != user["id"]:
+        raise HTTPException(403, "Forbidden")
+    if item.get("status") != "pending_payment" or item.get("contact_unlocked"):
+        raise HTTPException(400, "Listing is no longer awaiting contact-unlock payment")
+    phone = (payload or {}).get("phone_number", user.get("phone", ""))
+    if not phone:
+        raise HTTPException(400, "phone_number is required")
+    return await _initiate_yardsale_payment(
+        lid, phone, YARD_SALE_CONTACT_UNLOCK_KES,
+        "yard_sale_contact", user, "POST", "Unlock & publish",
+    )
+
+
 @router.get("/yard-sale/listings")
 async def list_listings(
     category: Optional[str] = None,
     max_price: Optional[float] = None,
-    status: str = "active",
+    status: Optional[str] = None,  # None = all visible to viewer including pending_payment for seller
     user: dict = Depends(get_current_user),
 ):
     await _expire_stale()
     db = get_db()
-    query: dict = {"status": status}
+    query: dict = {}
+    if status:
+        query["status"] = status
+    else:
+        # Default: active to everyone + pending_payment for the seller themselves
+        query["$or"] = [{"status": "active"}, {"status": "pending_payment", "seller_id": user["id"]}]
     if category:
         query["category"] = category
     if max_price is not None:

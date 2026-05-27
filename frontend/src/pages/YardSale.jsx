@@ -101,11 +101,21 @@ export default function YardSalePage() {
       fd.append("phone_number", form.phone_number);
       images.forEach((f) => fd.append("images", f));
       const r = await api.post("/yard-sale/listings", fd, { headers: { "Content-Type": "multipart/form-data" } });
-      toast.success("STK push sent — enter your M-Pesa PIN to publish the listing.");
-      setPendingPayment({
-        listing_id: r.data.listing?.id,
-        payment_id: r.data.payment?.payment_id,
-      });
+      if (r.data.payment) {
+        toast.success("STK push sent — enter your M-Pesa PIN to publish the listing.");
+        setPendingPayment({
+          listing_id: r.data.listing?.id,
+          payment_id: r.data.payment?.payment_id,
+        });
+      } else {
+        // Sandbox glitch — listing saved as draft. Show retry option.
+        toast.warning(r.data.message || "M-Pesa is unreachable. Open your listing to retry payment.");
+        setPendingPayment({
+          listing_id: r.data.listing?.id,
+          payment_id: null,
+          stk_error: r.data.stk_error || "Unknown error",
+        });
+      }
     } catch (err) {
       toast.error(formatApiError(err, "Failed"));
     } finally {
@@ -149,10 +159,33 @@ export default function YardSalePage() {
               </DialogHeader>
               {pendingPayment ? (
                 <div className="space-y-4 py-2" data-testid="yard-sale-pending">
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-md p-4 text-center">
-                    <div className="font-display font-bold text-lg mb-1">Awaiting M-Pesa confirmation</div>
-                    <div className="text-sm text-zinc-700">Enter your PIN on the prompt that was just sent to your phone. We'll publish the listing as soon as Safaricom confirms.</div>
-                  </div>
+                  {pendingPayment.stk_error ? (
+                    <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                      <div className="font-display font-bold text-base mb-1 text-red-900">M-Pesa unreachable</div>
+                      <div className="text-xs text-red-800 mb-3">{pendingPayment.stk_error}</div>
+                      <Button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const r = await api.post(`/yard-sale/listings/${pendingPayment.listing_id}/retry-unlock`, { phone_number: form.phone_number || user.phone });
+                            setPendingPayment({ listing_id: pendingPayment.listing_id, payment_id: r.data.payment_id });
+                            toast.success("STK push re-sent — check your phone");
+                          } catch (err) {
+                            toast.error(formatApiError(err, "Retry failed"));
+                          }
+                        }}
+                        className="w-full bg-mpesa hover:bg-mpesa text-white"
+                        data-testid="yard-sale-retry-stk"
+                      >
+                        Retry STK push
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-md p-4 text-center">
+                      <div className="font-display font-bold text-lg mb-1">Awaiting M-Pesa confirmation</div>
+                      <div className="text-sm text-zinc-700">Enter your PIN on the prompt that was just sent to your phone. We'll publish the listing as soon as Safaricom confirms.</div>
+                    </div>
+                  )}
                   <Button
                     type="button"
                     variant="outline"
