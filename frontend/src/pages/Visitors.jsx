@@ -74,7 +74,7 @@ export default function VisitorsPage() {
   };
 
   const isTenant = user.role === "tenant";
-  const isStaff = ["caretaker", "landlord", "admin"].includes(user.role);
+  const isStaff = ["caretaker", "security", "landlord", "admin"].includes(user.role);
 
   return (
     <div data-testid="visitors-page">
