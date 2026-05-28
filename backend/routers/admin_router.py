@@ -36,6 +36,7 @@ class SettingsUpdate(BaseModel):
     platform_paybill: Optional[str] = None
     platform_account: Optional[str] = None
     service_fee_pct: Optional[float] = None
+    service_fee_flat_kes: Optional[float] = None
     viewing_caretaker_share: Optional[float] = None
     viewing_platform_share: Optional[float] = None
 
@@ -45,7 +46,8 @@ DEFAULT_SETTINGS = {
     "commission_rate": DEFAULT_COMMISSION_RATE,
     "platform_paybill": "247247",
     "platform_account": "0740479864",
-    "service_fee_pct": 0.025,  # 2.5%
+    "service_fee_pct": 0.025,           # legacy — kept for backwards compatibility
+    "service_fee_flat_kes": 33.0,       # NEW: flat fee per bill payment (overrides pct when set)
     "viewing_caretaker_share": 150.0,
     "viewing_platform_share": 50.0,
 }
@@ -96,6 +98,7 @@ async def public_settings(_: dict = Depends(get_current_user)):
         "platform_paybill": s.get("platform_paybill", DEFAULT_SETTINGS["platform_paybill"]),
         "platform_account": s.get("platform_account", DEFAULT_SETTINGS["platform_account"]),
         "service_fee_pct": s.get("service_fee_pct", DEFAULT_SETTINGS["service_fee_pct"]),
+        "service_fee_flat_kes": s.get("service_fee_flat_kes", DEFAULT_SETTINGS["service_fee_flat_kes"]),
     }
 
 

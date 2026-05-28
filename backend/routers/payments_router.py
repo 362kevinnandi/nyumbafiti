@@ -295,10 +295,17 @@ async def initiate_payment(
     if bill.get("service_fee_paid_at"):
         raise HTTPException(400, "Service fee already paid for this bill — submit your rent receipt next")
 
-    # Compute service fee
-    service_fee_pct = float(await _get_settings_value(db, "service_fee_pct", 0.025))
+    # Compute service fee — prefer flat KES if configured (default 33), fall back to percentage
+    settings = await db["platform_settings"].find_one({"id": "default"}, {"_id": 0}) or {}
+    flat_fee = settings.get("service_fee_flat_kes")
+    service_fee_pct = float(settings.get("service_fee_pct", 0.025))
     rent_amount = float(bill["amount"]) - float(bill.get("amount_paid", 0) or 0)
-    service_fee = _round_up_to_10(rent_amount * service_fee_pct)
+    if flat_fee and float(flat_fee) > 0:
+        service_fee = int(round(float(flat_fee)))
+        fee_basis = "flat"
+    else:
+        service_fee = _round_up_to_10(rent_amount * service_fee_pct)
+        fee_basis = "percent"
     if service_fee <= 0:
         raise HTTPException(400, "Computed service fee is zero")
 
@@ -318,6 +325,7 @@ async def initiate_payment(
         "purpose": "bill_service_fee",
         "rent_amount": rent_amount,           # store the underlying rent so admin can reconcile
         "service_fee_pct": service_fee_pct,
+        "service_fee_basis": fee_basis,
         "checkout_request_id": None,
         "merchant_request_id": None,
         "mpesa_receipt": None,
@@ -417,10 +425,19 @@ async def submit_rent_receipt(
     from notifications import notify_user
     await notify_user(
         bill["landlord_id"], "payment_succeeded",
-        f"Rent receipt submitted — KES {payload.amount_paid:,.0f}",
-        f"Tenant {user['full_name']} submitted M-Pesa receipt {payload.mpesa_receipt}. Please confirm on the Bills page.",
-        link="/bills",
+        f"Rent receipt to confirm · KES {payload.amount_paid:,.0f}",
+        f"{user['full_name']} submitted M-Pesa receipt {payload.mpesa_receipt}. One-click Confirm/Reject available on your Dashboard.",
+        link="/dashboard",
     )
+    # Notify caretakers under the same landlord too
+    db_users = await db["users"].find({"landlord_id": bill["landlord_id"], "role": "caretaker"}, {"_id": 0, "id": 1}).to_list(20)
+    for ck in db_users:
+        await notify_user(
+            ck["id"], "payment_succeeded",
+            f"Rent receipt to confirm · KES {payload.amount_paid:,.0f}",
+            f"{user['full_name']} submitted M-Pesa receipt {payload.mpesa_receipt}. Confirm/Reject on your Dashboard.",
+            link="/dashboard",
+        )
     return {"ok": True, "status": "awaiting_landlord_confirmation"}
 
 
@@ -500,6 +517,47 @@ async def reject_rent_receipt(
         link="/bills",
     )
     return {"ok": True, "status": "pending"}
+
+
+@router.get("/bills/pending-confirmations")
+async def list_pending_confirmations(
+    user: dict = Depends(require_role("landlord", "caretaker", "admin")),
+):
+    """Bills where the tenant has submitted an M-Pesa receipt and is waiting for the landlord/caretaker to confirm.
+
+    Returns enriched rows with property name, unit number, tenant name, receipt code, and amount.
+    Used by the Dashboard widget so confirmations don't require navigating to /bills.
+    """
+    db = get_db()
+    q: dict = {"status": "awaiting_landlord_confirmation"}
+    if user["role"] == "landlord":
+        q["landlord_id"] = user["id"]
+    elif user["role"] == "caretaker":
+        if not user.get("landlord_id"):
+            return []
+        q["landlord_id"] = user["landlord_id"]
+    # admin sees all
+
+    bills = await db["bills"].find(q, {"_id": 0}).sort("rent_receipt_submitted_at", -1).to_list(200)
+    if not bills:
+        return []
+    tenant_ids = list({b["tenant_id"] for b in bills})
+    unit_ids = list({b.get("unit_id") for b in bills if b.get("unit_id")})
+    prop_ids = list({b.get("property_id") for b in bills if b.get("property_id")})
+    tenants = {u["id"]: u async for u in db["users"].find({"id": {"$in": tenant_ids}}, {"_id": 0, "id": 1, "full_name": 1, "phone": 1})}
+    units = {u["id"]: u async for u in db["units"].find({"id": {"$in": unit_ids}}, {"_id": 0, "id": 1, "unit_number": 1})}
+    props = {p["id"]: p async for p in db["properties"].find({"id": {"$in": prop_ids}}, {"_id": 0, "id": 1, "name": 1, "landlord_paybill": 1, "landlord_account_number": 1})}
+    for b in bills:
+        t = tenants.get(b["tenant_id"], {})
+        u = units.get(b.get("unit_id"), {})
+        p = props.get(b.get("property_id"), {})
+        b["tenant_name"] = t.get("full_name", "")
+        b["tenant_phone"] = t.get("phone", "")
+        b["unit_number"] = u.get("unit_number", "")
+        b["property_name"] = p.get("name", "")
+        b["landlord_paybill"] = p.get("landlord_paybill", "")
+        b["landlord_account_number"] = p.get("landlord_account_number", "")
+    return bills
 
 
 @router.post("/payments/mpesa/callback/{secret}")

@@ -4,6 +4,7 @@ import { api, formatKES } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/AppShell";
 import { Home, Users, AlertTriangle, Wallet, Wrench, CheckCircle2, QrCode, ShieldCheck } from "lucide-react";
+import PendingConfirmationsCard from "@/components/PendingConfirmationsCard";
 
 function formatPassTime(t) {
   if (!t) return "—";
@@ -69,6 +70,8 @@ export default function DashboardPage() {
   return (
     <div data-testid="dashboard-page">
       <PageHeader overline={user.role + " · Nairobi"} title={greet} />
+
+      {["landlord", "caretaker", "admin"].includes(user.role) && <PendingConfirmationsCard />}
 
       {user.role === "prospect" && prospectPasses.length > 0 && (
         <div className="mb-8 bg-gradient-to-br from-emerald-50 to-white border-2 border-emerald-300 rounded-md p-6" data-testid="prospect-qr-banner">

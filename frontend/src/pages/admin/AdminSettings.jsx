@@ -14,7 +14,7 @@ export default function AdminSettingsPage() {
   const [form, setForm] = useState({
     platform_paybill: "",
     platform_account: "",
-    service_fee_pct: "",
+    service_fee_flat_kes: "",
     viewing_caretaker_share: "",
     viewing_platform_share: "",
     commission_rate: "",
@@ -26,7 +26,7 @@ export default function AdminSettingsPage() {
     setForm({
       platform_paybill: r.data.platform_paybill || "247247",
       platform_account: r.data.platform_account || "0740479864",
-      service_fee_pct: ((r.data.service_fee_pct || 0.025) * 100).toFixed(2),
+      service_fee_flat_kes: r.data.service_fee_flat_kes ?? 33,
       viewing_caretaker_share: r.data.viewing_caretaker_share || 150,
       viewing_platform_share: r.data.viewing_platform_share || 50,
       commission_rate: ((r.data.commission_rate || 0.035) * 100).toFixed(2),
@@ -43,7 +43,7 @@ export default function AdminSettingsPage() {
       await api.patch("/admin/settings", {
         platform_paybill: form.platform_paybill.trim(),
         platform_account: form.platform_account.trim(),
-        service_fee_pct: parseFloat(form.service_fee_pct) / 100,
+        service_fee_flat_kes: parseFloat(form.service_fee_flat_kes),
         viewing_caretaker_share: parseFloat(form.viewing_caretaker_share),
         viewing_platform_share: parseFloat(form.viewing_platform_share),
         commission_rate: parseFloat(form.commission_rate) / 100,
@@ -92,15 +92,16 @@ export default function AdminSettingsPage() {
             <h2 className="font-display font-bold text-xl">Rent & Bill Service Fee</h2>
           </div>
           <p className="text-sm text-zinc-600 mb-4 leading-relaxed">
-            Tenants pay this percentage on top of every rent/bill, via STK push to the platform paybill. Rounded up to nearest KES 10.
+            Flat KES fee charged on every rent/bill payment, via STK push to the platform paybill.
+            Charged once per bill regardless of bill size.
           </p>
           <div>
-            <Label className="overline">Service fee % on tenant payments</Label>
-            <Input required type="number" step="0.01" min="0" max="50" value={form.service_fee_pct} onChange={(e) => setForm({ ...form, service_fee_pct: e.target.value })} className="mt-1 font-mono-num text-lg" data-testid="setting-fee-pct" />
-            <div className="text-xs text-zinc-500 mt-1">e.g. 2.5 means KES 250 fee on a KES 10,000 rent</div>
+            <Label className="overline">Flat service fee (KES)</Label>
+            <Input required type="number" step="1" min="0" max="10000" value={form.service_fee_flat_kes} onChange={(e) => setForm({ ...form, service_fee_flat_kes: e.target.value })} className="mt-1 font-mono-num text-lg" data-testid="setting-fee-flat" />
+            <div className="text-xs text-zinc-500 mt-1">Default: KES 33 per bill</div>
           </div>
           <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mt-3 text-xs font-mono-num">
-            Sample: rent KES 10,000 → fee KES {Math.ceil(10000 * (parseFloat(form.service_fee_pct || 0) / 100) / 10) * 10} → tenant total KES {(10000 + Math.ceil(10000 * (parseFloat(form.service_fee_pct || 0) / 100) / 10) * 10).toLocaleString()}
+            Sample: rent KES 10,000 → flat fee KES {form.service_fee_flat_kes || 0} → tenant total cost KES {(10000 + parseFloat(form.service_fee_flat_kes || 0)).toLocaleString()}
           </div>
         </section>
 

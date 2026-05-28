@@ -340,13 +340,13 @@ function PayDialog({ bill, onPaid }) {
           </DialogDescription>
         </DialogHeader>
 
-        {/* STEP 1: pay 2.5% service fee */}
+        {/* STEP 1: pay flat KES 33 service fee */}
         {!feePaid && !pollingPaymentId && (
           <form onSubmit={startFeePayment} className="space-y-4 mt-2" data-testid="pay-fee-form">
             <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-xs">
               <div className="font-semibold text-amber-900 mb-1">Two-step payment</div>
               <ol className="text-amber-900/90 leading-relaxed list-decimal list-inside space-y-0.5">
-                <li><strong>STK push now</strong> for the 2.5% service fee to NyumbaOS.</li>
+                <li><strong>STK push now for the KES 33 service fee</strong> for using the platform for administration support.</li>
                 <li><strong>Then pay {billTypeLabel}</strong> directly to your {recipientLabel}'s M-Pesa Paybill.</li>
               </ol>
             </div>
@@ -357,7 +357,7 @@ function PayDialog({ bill, onPaid }) {
             <DialogFooter>
               <Button type="submit" disabled={submitting} className="bg-mpesa hover:bg-mpesa text-white w-full" data-testid="pay-fee-submit">
                 <Smartphone className="w-4 h-4 mr-1.5" />
-                {submitting ? "Sending..." : "Pay service fee (~2.5%)"}
+                {submitting ? "Sending..." : "Pay KES 33 service fee"}
               </Button>
             </DialogFooter>
           </form>
