@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Plus, FileText, Trash2, Sparkles, Smartphone, CheckCircle2 } from "lucide-react";
+import { Plus, FileText, Trash2, Sparkles, Smartphone, CheckCircle2, Inbox, XCircle, HelpCircle } from "lucide-react";
 
 const STATUS_STYLES = {
   paid: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -35,6 +36,8 @@ export default function BillsPage() {
   const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState("all"); // landlord: "all" | "confirmations"
+  const [confirmations, setConfirmations] = useState([]);
   const [form, setForm] = useState({
     tenant_id: "", unit_id: "", bill_type: "rent", amount: 0,
     period: new Date().toISOString().slice(0, 7),
@@ -46,12 +49,14 @@ export default function BillsPage() {
     if (isLandlord) {
       calls.push(api.get("/tenants"));
       calls.push(api.get("/units"));
+      calls.push(api.get("/bills/pending-confirmations"));
     }
     const results = await Promise.all(calls);
     setBills(results[0].data);
     if (isLandlord) {
       setTenants(results[1].data);
       setUnits(results[2].data);
+      setConfirmations(results[3].data || []);
     }
     setLoading(false);
   }, [isLandlord]);
@@ -162,7 +167,35 @@ export default function BillsPage() {
         }
       />
 
-      {loading ? <div className="text-zinc-500">Loading...</div> : bills.length === 0 ? (
+      {isLandlord && (
+        <div className="mb-5 flex items-center gap-2 border-b border-zinc-200" data-testid="bills-tabs">
+          <button
+            type="button"
+            onClick={() => setTab("all")}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === "all" ? "border-zinc-950 text-zinc-950" : "border-transparent text-zinc-500 hover:text-zinc-800"}`}
+            data-testid="bills-tab-all"
+          >
+            <FileText className="w-4 h-4 inline mr-1.5 -mt-0.5" /> All Bills
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("confirmations")}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5 ${tab === "confirmations" ? "border-zinc-950 text-zinc-950" : "border-transparent text-zinc-500 hover:text-zinc-800"}`}
+            data-testid="bills-tab-confirmations"
+          >
+            <Inbox className="w-4 h-4" /> Confirmations
+            {confirmations.length > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold" data-testid="bills-confirmations-count">
+                {confirmations.length}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {isLandlord && tab === "confirmations" ? (
+        <ConfirmationsPanel rows={confirmations} loading={loading} onChanged={load} />
+      ) : loading ? <div className="text-zinc-500">Loading...</div> : bills.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-zinc-200 rounded-md bg-white">
           <FileText className="w-10 h-10 mx-auto text-zinc-300 mb-3" />
           <div className="font-display font-bold text-lg mb-1">No bills</div>
@@ -204,6 +237,16 @@ export default function BillsPage() {
                     <td className="px-4 py-3 text-zinc-600 text-xs font-mono-num">{new Date(b.due_date).toLocaleDateString()}</td>
                     <td className="px-4 py-3">
                       <span className={`badge-status border ${STATUS_STYLES[b.status] || STATUS_STYLES.pending}`}>{STATUS_LABEL[b.status] || b.status}</span>
+                      {!isLandlord && b.info_request_message && (
+                        <div className="mt-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 max-w-[220px]" data-testid={`tenant-info-request-${b.id}`}>
+                          <strong>Landlord needs info:</strong> {b.info_request_message}
+                        </div>
+                      )}
+                      {!isLandlord && b.rent_receipt_rejection && b.status === "pending" && (
+                        <div className="mt-1.5 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 max-w-[220px]" data-testid={`tenant-rejection-${b.id}`}>
+                          <strong>Rejected:</strong> {b.rent_receipt_rejection}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {!isLandlord && b.status !== "paid" && (
@@ -469,5 +512,168 @@ function ConfirmReceiptButton({ bill, onConfirmed }) {
         Reject
       </Button>
     </div>
+  );
+}
+
+
+
+function ConfirmationsPanel({ rows, loading, onChanged }) {
+  const [dialog, setDialog] = useState(null); // { kind: 'reject'|'info', bill }
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const approve = async (bill) => {
+    if (!window.confirm(`Confirm receipt ${bill.rent_receipt_code} for ${formatKES(bill.rent_receipt_amount)} from ${bill.tenant_name}?`)) return;
+    try {
+      await api.post(`/bills/${bill.id}/confirm-rent-receipt`);
+      toast.success("Receipt confirmed — bill marked paid");
+      onChanged();
+    } catch (err) {
+      toast.error(formatApiError(err, "Failed"));
+    }
+  };
+
+  const submitDialog = async (e) => {
+    e.preventDefault();
+    if (!reason.trim()) {
+      toast.error(dialog.kind === "reject" ? "Reason is required" : "Message is required");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (dialog.kind === "reject") {
+        await api.post(`/bills/${dialog.bill.id}/reject-rent-receipt`, { reason: reason.trim() });
+        toast.success("Receipt rejected — tenant must re-submit");
+      } else {
+        await api.post(`/bills/${dialog.bill.id}/request-info-rent-receipt`, { message: reason.trim() });
+        toast.success("Info request sent to tenant");
+      }
+      setDialog(null);
+      setReason("");
+      onChanged();
+    } catch (err) {
+      toast.error(formatApiError(err, "Failed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <div className="text-zinc-500" data-testid="confirmations-loading">Loading confirmations…</div>;
+
+  if (!rows.length) {
+    return (
+      <div className="text-center py-16 border border-dashed border-zinc-200 rounded-md bg-white" data-testid="confirmations-empty">
+        <Inbox className="w-10 h-10 mx-auto text-zinc-300 mb-3" />
+        <div className="font-display font-bold text-lg mb-1">No pending confirmations</div>
+        <div className="text-sm text-zinc-500 max-w-md mx-auto">
+          When a tenant pays rent or any bill to your paybill and submits the M-Pesa receipt, it will appear here for you to approve, reject, or request more info.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="bg-white border border-zinc-200 rounded-md overflow-x-auto" data-testid="confirmations-table">
+        <table className="w-full text-sm min-w-[760px]">
+          <thead className="bg-zinc-50 border-b border-zinc-200">
+            <tr>
+              <th className="text-left px-4 py-3 overline text-zinc-500">Tenant / Unit</th>
+              <th className="text-left px-4 py-3 overline text-zinc-500">Bill</th>
+              <th className="text-left px-4 py-3 overline text-zinc-500">M-Pesa receipt</th>
+              <th className="text-right px-4 py-3 overline text-zinc-500">Amount</th>
+              <th className="text-left px-4 py-3 overline text-zinc-500">Submitted</th>
+              <th className="text-right px-4 py-3 overline text-zinc-500">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((b) => (
+              <tr key={b.id} className="border-b border-zinc-100 hover:bg-zinc-50/50 align-top" data-testid={`confirmation-row-${b.id}`}>
+                <td className="px-4 py-3">
+                  <div className="font-semibold">{b.tenant_name || "—"}</div>
+                  <div className="text-xs text-zinc-500">{b.property_name} · Unit {b.unit_number}</div>
+                  {b.tenant_phone && <div className="text-xs text-zinc-400 font-mono-num">{b.tenant_phone}</div>}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="capitalize font-medium">{b.bill_type}</div>
+                  <div className="text-xs text-zinc-500 font-mono-num">{b.period}</div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="font-mono-num font-bold text-emerald-700">{b.rent_receipt_code || "—"}</div>
+                  {b.info_request_message && (
+                    <div className="text-[11px] text-amber-700 mt-1 max-w-[200px]">Info requested: {b.info_request_message}</div>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right font-mono-num font-semibold">{formatKES(b.rent_receipt_amount || 0)}</td>
+                <td className="px-4 py-3 text-xs text-zinc-600 font-mono-num">
+                  {b.rent_receipt_submitted_at ? new Date(b.rent_receipt_submitted_at).toLocaleString() : "—"}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-1.5 justify-end flex-wrap">
+                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs" onClick={() => approve(b)} data-testid={`approve-${b.id}`}>
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Approve
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50" onClick={() => { setDialog({ kind: "info", bill: b }); setReason(""); }} data-testid={`request-info-${b.id}`}>
+                      <HelpCircle className="w-3.5 h-3.5 mr-1" /> Request info
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-8 text-xs border-red-300 text-red-700 hover:bg-red-50" onClick={() => { setDialog({ kind: "reject", bill: b }); setReason(""); }} data-testid={`reject-${b.id}`}>
+                      <XCircle className="w-3.5 h-3.5 mr-1" /> Reject
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Dialog open={!!dialog} onOpenChange={(o) => { if (!o) { setDialog(null); setReason(""); } }}>
+        <DialogContent className="rounded-md max-w-md" data-testid="confirmation-action-dialog">
+          {dialog && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="font-display font-black text-2xl">
+                  {dialog.kind === "reject" ? "Reject receipt" : "Request more info"}
+                </DialogTitle>
+                <DialogDescription>
+                  {dialog.kind === "reject"
+                    ? `Tenant ${dialog.bill.tenant_name} will be notified to re-submit a new receipt for ${dialog.bill.bill_type} (${dialog.bill.period}).`
+                    : `Ask ${dialog.bill.tenant_name} for more details about M-Pesa receipt ${dialog.bill.rent_receipt_code}.`}
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={submitDialog} className="space-y-3 mt-2">
+                <div>
+                  <Label className="overline">
+                    {dialog.kind === "reject" ? "Reason for rejection" : "What info do you need?"}
+                  </Label>
+                  <Textarea
+                    required
+                    rows={4}
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder={dialog.kind === "reject"
+                      ? "e.g. Receipt code does not match any payment to my paybill"
+                      : "e.g. Please share the M-Pesa SMS screenshot showing the timestamp"}
+                    className="mt-1"
+                    data-testid="confirmation-action-reason"
+                  />
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => { setDialog(null); setReason(""); }}>Cancel</Button>
+                  <Button
+                    type="submit"
+                    disabled={busy}
+                    className={dialog.kind === "reject" ? "bg-red-600 hover:bg-red-700" : "bg-amber-600 hover:bg-amber-700"}
+                    data-testid="confirmation-action-submit"
+                  >
+                    {busy ? "Sending…" : (dialog.kind === "reject" ? "Reject receipt" : "Send request")}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

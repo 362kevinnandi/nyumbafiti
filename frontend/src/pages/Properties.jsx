@@ -260,7 +260,7 @@ export default function PropertiesPage() {
                       </div>
                     </div>
                     <p className="text-[10px] text-emerald-900/80 leading-snug">
-                      Tenants pay rent directly to <strong>your</strong> M-Pesa Paybill above. NyumbaOS charges them a separate 2.5% service fee via STK push to our platform paybill.
+                      Tenants pay rent directly to <strong>your</strong> M-Pesa Paybill above. NyumbaOS charges them a separate flat KES 33 service fee via STK push to our platform paybill.
                     </p>
                   </div>
                   {!editId && (

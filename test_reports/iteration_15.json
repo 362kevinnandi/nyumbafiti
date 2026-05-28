@@ -1,0 +1,70 @@
+{
+  "summary": "Round 7 testing — Flat KES 33 service fee + Landlord Confirmation tab. Backend: 8 passed, 1 failed, 3 skipped (502 Safaricom sandbox). Flat KES 33 fee verified for all bill types (rent, water, electricity, service, other). Tenant submit-receipt → awaiting_landlord_confirmation works, pending-confirmations endpoint returns correct enrichment, confirm/reject/request-info endpoints work and require correct bodies. Frontend Confirmations tab (badge + table + dialogs) and tenant Pay dialog (exact STK push wording) wired correctly. HOWEVER one CRITICAL bug discovered: `_compute_status` in bills_router.py auto-mutates `awaiting_landlord_confirmation` → `pending` for any tenant or landlord call to GET /api/bills, which silently breaks the entire confirmations flow (Confirmations tab always empty after first page load).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/bills (called by both tenant and landlord BillsPage)",
+        "issue": "_compute_status() in /app/backend/routers/bills_router.py:17-29 + the persistence call right after it overrides any non-pending/paid status. For bills in 'awaiting_landlord_confirmation' or 'awaiting_rent_receipt' with amount_paid=0 and due_date in the future, status is silently reset to 'pending' AND PERSISTED back to MongoDB. Net effect: as soon as ANY user opens /bills, the Confirmations tab becomes empty because pending-confirmations queries status='awaiting_landlord_confirmation'. Reproduced 3x by seeding bills with status='awaiting_landlord_confirmation' — all were mutated to 'pending' after the landlord visited /bills.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/payments/mpesa/stk-push",
+        "issue": "Safaricom sandbox returns 502 intermittently for some bill_type values (3/5 in our run). Backend still computes service_fee_amount=33.0 correctly when sandbox is up — not a Nyumba-side issue. The 2 calls that returned 200 (rent + one other) confirmed service_fee_amount=33.0 and rent_amount=full bill amount."
+      },
+      {
+        "endpoint": "POST /api/bills/{bill_id}/request-info-rent-receipt",
+        "issue": "Correctly 400s on empty/missing message and 200s on valid one; info_request_message stored and surfaced to tenant via GET /api/bills (only because _compute_status also resets the status, the tenant banner still shows the message because the message field itself is preserved)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Landlord Confirmations tab",
+        "issue": "Tab UI works (tabs, badge slot, empty state, table testid, Approve/Reject/Request-info buttons with dialog) but it can never display rows in practice because of the _compute_status bug above. Verified by directly hitting GET /api/bills/pending-confirmations from curl right after seeding (returned 1 row with full enrichment), then opening /bills in browser → the same bill is mutated to status='pending' → pending-confirmations now returns 0. Frontend code is correct; backend invalidates the data.",
+        "affected_selectors": ["[data-testid=bills-confirmations-count]", "[data-testid=confirmations-table]", "[data-testid^=confirmation-row-]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "verified_working": [
+    "GET /api/admin/public-settings returns service_fee_flat_kes=33.0",
+    "STK push response carries service_fee_amount=33.0 and rent_amount=full bill for rent/other bill types",
+    "POST /api/bills/{id}/submit-rent-receipt transitions to awaiting_landlord_confirmation (verified in test_round7 fixture before _compute_status corrupts it on next /api/bills GET)",
+    "GET /api/bills/pending-confirmations returns enriched rows (tenant_name, unit_number, property_name, landlord_paybill, rent_receipt_code, rent_receipt_amount, rent_receipt_submitted_at) — verified via direct curl",
+    "POST /api/bills/{id}/confirm-rent-receipt flips status to 'paid'",
+    "POST /api/bills/{id}/reject-rent-receipt with {reason} clears receipt code and sets rent_receipt_rejection",
+    "POST /api/bills/{id}/request-info-rent-receipt requires {message} (400 without), stores info_request_message",
+    "Frontend: /bills page has Confirmations tab + badge slot + empty state — switching between All Bills ↔ Confirmations works",
+    "Frontend: Landlord Reject/Request Info buttons open dialog with textarea (data-testid=confirmation-action-reason)",
+    "Frontend: Tenant Pay dialog shows EXACT wording 'STK push now for the KES 33 service fee for using the platform for administration support.' plus 'Pay KES 33 service fee' button — wording matches request verbatim",
+    "Frontend: Tenant bills page renders rejection banner ('Rejected: …') and info-request banner ('Landlord needs info: …') when those fields are populated"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_round7.py",
+    "/app/test_reports/pytest/round7_results.xml",
+    "/app/test_reports/seed_confirmation.py"
+  ],
+  "action_items": [
+    "FIX (CRITICAL): /app/backend/routers/bills_router.py — _compute_status must skip override when bill.status is one of {'awaiting_rent_receipt', 'awaiting_landlord_confirmation', 'paid', 'cancelled'} (it currently only protects 'paid'/'cancelled'). And the GET /api/bills loop that calls update_one to persist the recomputed status should only persist when the bill's incoming status is in {'pending','overdue'}.",
+    "Optional: persist landlord_paybill on the demo Westlands Park Apartments property so the Confirmations table can display the paybill column with data."
+  ],
+  "critical_code_review_comments": [
+    "Side-effect in GET /api/bills (mutating DB during a read) is dangerous — at minimum it should be gated to bills whose status is in {'pending','overdue'} so it can't clobber transient workflow states like awaiting_*.",
+    "POST /api/bills/{id}/request-info-rent-receipt correctly keeps status as awaiting_landlord_confirmation — good. But its persistence is undone by _compute_status the moment the tenant or landlord refreshes /bills."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_round7.py (new)",
+    "/app/test_reports/seed_confirmation.py (new — utility for next agents)"
+  ],
+  "success_rate": {"backend": "73% (8/11, with 3 unrelated sandbox 502s)", "frontend": "85% (all UI surfaces working; Confirmations table empty due to backend bug)"},
+  "test_credentials": "admin@nyumbaos.co.ke/admin123, mary@demo.nyumba/demo123, tenant1@demo.nyumba/demo123 — all verified working. Login response key is 'access_token' (not 'token').",
+  "seed_data_creation": "Created 3 awaiting_landlord_confirmation bills via /app/test_reports/seed_confirmation.py for mary↔tenant1; all were silently downgraded to 'pending' by _compute_status. Cleaned up all TEST_ and SEEDUITEST bills at end of run.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After main agent fixes _compute_status, re-run /app/test_reports/seed_confirmation.py, then open landlord /bills → Confirmations tab to verify the row renders with paybill column populated and Approve/Reject/Request-info dialogs round-trip end-to-end. The tenant Pay dialog wording is already perfect; no need to retest it.",
+  "rca_of_the_issue": "Root cause: bills_router._compute_status() returns 'pending' for any bill that isn't paid/cancelled and not overdue, and the GET /api/bills handler immediately writes that recomputed status back to MongoDB. The new workflow introduces two transient statuses (awaiting_rent_receipt, awaiting_landlord_confirmation) that the function doesn't know about, so it overwrites them. Reproduction: 1) Insert a bill with status='awaiting_landlord_confirmation' + receipt fields populated. 2) curl /api/bills/pending-confirmations as landlord → returns the bill. 3) Open landlord /bills in browser (BillsPage fetches /api/bills). 4) curl /api/bills/pending-confirmations again → returns []. DB shows status now = 'pending'. Mitigation: extend the 'protected statuses' list in _compute_status and/or stop persisting the recomputed status for non-pending/overdue bills."
+}

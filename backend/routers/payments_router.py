@@ -273,10 +273,11 @@ async def initiate_payment(
 ):
     """Tenant initiates payment for a bill.
 
-    Flow (Option 1b):
-    1. Tenant manually pays the *rent amount* via M-Pesa to the landlord's paybill (shown in the UI).
-    2. This endpoint STK-pushes ONLY the 2.5% service fee (rounded up to KES 10) to the PLATFORM paybill.
-    3. The bill remains pending until tenant submits the rent receipt (POST /bills/{id}/submit-rent-receipt)
+    Flow (split payment, flat KES 33 service fee):
+    1. Tenant manually pays the *bill amount* via M-Pesa to the landlord's paybill (shown in the UI).
+    2. This endpoint STK-pushes ONLY the flat KES 33 service fee to the PLATFORM paybill (covers rent, water,
+       electricity, service charge and any other bill type — one fee per bill payment).
+    3. The bill remains pending until tenant submits the M-Pesa receipt (POST /bills/{id}/submit-rent-receipt)
        AND the landlord/caretaker confirms it (POST /bills/{id}/confirm-rent-receipt).
     """
     db = get_db()
@@ -295,17 +296,13 @@ async def initiate_payment(
     if bill.get("service_fee_paid_at"):
         raise HTTPException(400, "Service fee already paid for this bill — submit your rent receipt next")
 
-    # Compute service fee — prefer flat KES if configured (default 33), fall back to percentage
+    # Flat KES 33 service fee per bill payment (applies to rent, water, electricity, service_charge, other)
     settings = await db["platform_settings"].find_one({"id": "default"}, {"_id": 0}) or {}
-    flat_fee = settings.get("service_fee_flat_kes")
-    service_fee_pct = float(settings.get("service_fee_pct", 0.025))
+    flat_fee = settings.get("service_fee_flat_kes", 33.0)  # default 33 when older DBs lack the key
+    service_fee_pct = float(settings.get("service_fee_pct", 0.025))  # legacy
     rent_amount = float(bill["amount"]) - float(bill.get("amount_paid", 0) or 0)
-    if flat_fee and float(flat_fee) > 0:
-        service_fee = int(round(float(flat_fee)))
-        fee_basis = "flat"
-    else:
-        service_fee = _round_up_to_10(rent_amount * service_fee_pct)
-        fee_basis = "percent"
+    service_fee = int(round(float(flat_fee)))
+    fee_basis = "flat"
     if service_fee <= 0:
         raise HTTPException(400, "Computed service fee is zero")
 
@@ -384,7 +381,7 @@ async def initiate_payment(
         "landlord_account_number": prop.get("landlord_account_number") or "",
         "platform_paybill": await _get_settings_value(db, "platform_paybill", "247247"),
         "platform_account": await _get_settings_value(db, "platform_account", "0740479864"),
-        "message": resp.get("CustomerMessage", "STK push sent — enter PIN to pay the 2.5% service fee."),
+        "message": resp.get("CustomerMessage", "STK push now for the KES 33 service fee for using the platform for administration support."),
     }
 
 
@@ -409,7 +406,7 @@ async def submit_rent_receipt(
     if bill["status"] == "paid":
         raise HTTPException(400, "Bill is already paid")
     if not bill.get("service_fee_paid_at"):
-        raise HTTPException(400, "Pay the 2.5% service fee first — landlords trust receipts that come with the fee")
+        raise HTTPException(400, "Pay the KES 33 service fee first — landlords trust receipts that come with the fee")
     if not payload.mpesa_receipt.strip():
         raise HTTPException(400, "M-Pesa receipt code is required")
     await db["bills"].update_one(
@@ -517,6 +514,48 @@ async def reject_rent_receipt(
         link="/bills",
     )
     return {"ok": True, "status": "pending"}
+
+
+@router.post("/bills/{bill_id}/request-info-rent-receipt")
+async def request_info_rent_receipt(
+    bill_id: str,
+    payload: dict,
+    user: dict = Depends(require_role("landlord", "caretaker", "admin")),
+):
+    """Landlord requests more information from the tenant about the submitted receipt
+    (e.g. screenshot of the M-Pesa SMS, clarification of timing).
+    Bill stays in awaiting_landlord_confirmation so the same receipt is on record, but a
+    `info_request_message` field is set and the tenant is notified to provide more details.
+    """
+    db = get_db()
+    bill = await db["bills"].find_one({"id": bill_id})
+    if not bill:
+        raise HTTPException(404, "Bill not found")
+    if user["role"] == "landlord" and bill["landlord_id"] != user["id"]:
+        raise HTTPException(403, "Not your bill")
+    if user["role"] == "caretaker" and bill["landlord_id"] != user.get("landlord_id"):
+        raise HTTPException(403, "Not your landlord's bill")
+    if not bill.get("rent_receipt_submitted_at"):
+        raise HTTPException(400, "Tenant hasn't submitted the rent receipt yet")
+    message = (payload or {}).get("message", "").strip()
+    if not message:
+        raise HTTPException(400, "A message explaining what info you need is required")
+    await db["bills"].update_one(
+        {"id": bill_id},
+        {"$set": {
+            "info_request_message": message,
+            "info_requested_at": now_iso(),
+            "info_requested_by": user["id"],
+        }},
+    )
+    from notifications import notify_user
+    await notify_user(
+        bill["tenant_id"], "payment_succeeded",
+        f"More info needed for bill #{bill_id[:8]}",
+        f"Your {user['role']} needs more info before confirming your M-Pesa receipt: {message}",
+        link="/bills",
+    )
+    return {"ok": True, "status": bill["status"], "info_request_message": message}
 
 
 @router.get("/bills/pending-confirmations")
