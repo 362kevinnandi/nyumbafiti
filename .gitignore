@@ -83,6 +83,9 @@ android-sdk/
 .env
 .env.*
 *.env
+# Keep example + production-placeholder env files for deployment docs
+!**/.env.example
+!**/.env.production
 credentials.json
 *.key
 .credentials

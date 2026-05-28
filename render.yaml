@@ -1,0 +1,66 @@
+# Render Blueprint — provisions both services from this repo with one click.
+# Push this repo to GitHub, then in Render: New → Blueprint → connect repo.
+# https://render.com/docs/blueprint-spec
+services:
+  # ============ Backend: FastAPI ============
+  - type: web
+    name: nyumbafiti-backend
+    runtime: python
+    plan: starter         # upgrade to standard for production traffic
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn server:app --host 0.0.0.0 --port $PORT"
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: MONGO_URL
+        sync: false       # paste MongoDB Atlas SRV URI in Render dashboard
+      - key: DB_NAME
+        value: nyumba_os
+      - key: JWT_SECRET
+        generateValue: true
+      - key: EMERGENT_LLM_KEY
+        sync: false       # paste from Emergent Profile → Universal Key
+      - key: MPESA_CONSUMER_KEY
+        sync: false
+      - key: MPESA_CONSUMER_SECRET
+        sync: false
+      - key: MPESA_PASSKEY
+        sync: false
+      - key: MPESA_SHORTCODE
+        value: "174379"   # sandbox shortcode; change to 247247 when going live
+      - key: MPESA_CALLBACK_BASE_URL
+        sync: false       # set to https://<your-backend>.onrender.com after first deploy
+      - key: MPESA_CALLBACK_SECRET
+        generateValue: true
+      - key: MPESA_DEMO_FALLBACK
+        value: "false"
+      - key: ADMIN_EMAIL
+        value: admin@nyumbafiti.co.ke
+      - key: ADMIN_PASSWORD
+        sync: false       # set a strong password
+    disk:
+      name: uploads
+      mountPath: /opt/render/project/src/backend/uploads
+      sizeGB: 1            # persistent disk for property/community/yardsale/lease uploads
+
+  # ============ Frontend: React (static site) ============
+  - type: web
+    name: nyumbafiti-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: "yarn install && yarn build"
+    staticPublishPath: build
+    autoDeploy: true
+    envVars:
+      - key: REACT_APP_BACKEND_URL
+        sync: false       # set to the backend URL above (or https://api.nyumbafiti.co.ke)
+    routes:
+      - type: rewrite
+        source: "/*"
+        destination: /index.html
+    headers:
+      - path: /static/*
+        name: Cache-Control
+        value: "public, max-age=31536000, immutable"
