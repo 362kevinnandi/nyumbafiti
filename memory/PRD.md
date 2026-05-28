@@ -66,6 +66,13 @@ Landlord, Tenant, Caretaker, Prospect, Security, Super Admin.
 - **Disbursement ledger for viewings** — every paid viewing fee creates a row showing caretaker_share=KES 150 + platform_share=KES 50; admin marks paid via `/admin/disbursements` after manual M-Pesa B2C disbursement.
 - **Realistic Daraja constraint documented** — STK push can only target our platform paybill, so the design splits each rent payment into "auto STK fee" + "manual receipt-confirmed rent".
 
+### Round 7 Fine-Tuning ✅ (Feb 2026)
+- **Flat KES 33 service fee** — replaces 2.5% percentage for ALL bill types (rent, water, electricity, service charge, other). Defaults to 33 in DEFAULT_SETTINGS and falls back to 33 when older DB rows lack the `service_fee_flat_kes` key. Admin can override via /admin/settings.
+- **STK Push copy update** — tenant Pay dialog now reads exactly: *"STK push now for the KES 33 service fee for using the platform for administration support."* Step 2 instructs to pay the bill amount to landlord's M-Pesa paybill.
+- **Landlord Confirmation Tab in Bills page** — landlord/caretaker sees a tabbed view: All Bills + Confirmations (with count badge). Confirmations table shows tenant, unit, property, M-Pesa receipt code, amount, submitted-at, plus three actions: Approve (one-click), Reject (with reason dialog), Request info (with message dialog).
+- **New endpoint** `POST /api/bills/{id}/request-info-rent-receipt` — keeps bill in `awaiting_landlord_confirmation`, stores `info_request_message` and `info_requested_at`, notifies tenant. Tenant sees an amber banner on the bill row inside `/bills`.
+- **Bill status protection** — `_compute_status()` and the persistence loop in `GET /api/bills` no longer overwrite transient workflow statuses (`awaiting_rent_receipt`, `awaiting_landlord_confirmation`). Earlier this was silently flipping submitted receipts back to "pending", emptying the Confirmations tab.
+
 ## Architecture
 ```
 /app/

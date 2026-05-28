@@ -15,6 +15,9 @@ def _current_period() -> str:
 
 
 def _compute_status(bill: dict) -> str:
+    # Don't override transient workflow statuses
+    if bill.get("status") in {"awaiting_rent_receipt", "awaiting_landlord_confirmation", "paid", "cancelled"}:
+        return bill["status"]
     if bill["amount_paid"] >= bill["amount"]:
         return "paid"
     if bill["amount_paid"] > 0:
@@ -39,8 +42,10 @@ async def list_bills(user: dict = Depends(get_current_user)):
     else:
         return []  # caretakers don't see bills
     bills = await db["bills"].find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    # update overdue status on read
+    # update overdue status on read (only for bills in pending/overdue/partial states)
     for b in bills:
+        if b.get("status") in {"awaiting_rent_receipt", "awaiting_landlord_confirmation", "paid", "cancelled"}:
+            continue
         new_status = _compute_status(b)
         if new_status != b["status"]:
             await db["bills"].update_one({"id": b["id"]}, {"$set": {"status": new_status}})
