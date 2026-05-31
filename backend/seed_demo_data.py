@@ -263,6 +263,7 @@ async def main():
                 doc = {
                     "id": m.new_id(), "title": title, "description": f"Demo issue: {title}.",
                     "category": cat, "severity": sev, "status": status,
+                    "tenant_id": tenant["id"],
                     "reported_by": tenant["id"], "reported_by_name": tenant["full_name"],
                     "landlord_id": tenant["landlord_id"],
                     "property_id": (await db["units"].find_one({"id": tenant["unit_id"]}))["property_id"],

@@ -82,9 +82,10 @@ MONGO_URL=mongodb://localhost:27017
 DB_NAME=nyumba_os
 JWT_SECRET=change-me-to-a-random-32-char-string
 
-# Super admin seeded on first boot
-ADMIN_EMAIL=admin@nyumbafiti.co.ke
-ADMIN_PASSWORD=change-me-strong
+# Super admin seeded on first boot — these MUST match memory/test_credentials.md
+# (Change in production via Admin → Settings or env var on the host)
+ADMIN_EMAIL=admin@nyumbaos.co.ke
+ADMIN_PASSWORD=admin123
 
 # Emergent Universal LLM Key (Profile → Universal Key in app.emergent.sh)
 EMERGENT_LLM_KEY=sk-emergent-xxxxxxxx
@@ -126,7 +127,7 @@ That gives you 6 properties, 12 units, 4 tenants, 2 caretakers, 2 security, plus
 **Demo logins** (see `memory/test_credentials.md` for the full list):
 | Role | Email | Password |
 |---|---|---|
-| Super admin | `admin@nyumbafiti.co.ke` | (from `ADMIN_PASSWORD`) |
+| Super admin | `admin@nyumbaos.co.ke` | `admin123` |
 | Landlord | `mary@demo.nyumba` | `demo123` |
 | Tenant | `tenant1@demo.nyumba` | `demo123` |
 | Caretaker | `ck1@demo.nyumba` | `demo123` |
@@ -288,6 +289,8 @@ Detailed go-live checklist: see [`LAUNCH_nyumbafiti.md`](./LAUNCH_nyumbafiti.md)
 ---
 
 ## Common pitfalls
+- **Admin can't login locally** → `ADMIN_EMAIL`/`ADMIN_PASSWORD` weren't set in `backend/.env` **before** the first backend boot, so the admin row was never seeded. Fix: stop backend, add the vars (default `admin@nyumbaos.co.ke` / `admin123`), `mongosh nyumba_os --eval 'db.users.deleteOne({email:"admin@nyumbaos.co.ke"})'`, then restart. The `_seed_admin()` hook runs on every startup but skips if a user with that email already exists.
+- **`/issues` returns 500** → legacy seed rows missing `tenant_id`. Fixed in Round 7 — `list_issues` now backfills from `reported_by`. If you still see it, run: `mongosh nyumba_os --eval 'db.issues.updateMany({tenant_id:{$exists:false},reported_by:{$exists:true}},[{$set:{tenant_id:"$reported_by"}}])'`
 - **Frontend can't reach backend in prod** → CORS. `server.py` already allows the production domain via `CORSMiddleware` — but if you change the domain, update `ALLOWED_ORIGINS` accordingly.
 - **STK pushes return 500** → Safaricom rejects `&`, `%`, `=` in `TransactionDesc`. The codebase already strips them.
 - **Uploads vanish after redeploy** → you forgot the persistent volume (Railway Volume / Render Disk) on `/uploads`.

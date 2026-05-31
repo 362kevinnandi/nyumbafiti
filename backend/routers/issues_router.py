@@ -22,9 +22,13 @@ async def list_issues(user: dict = Depends(get_current_user)):
     else:
         return []
     issues = await db["issues"].find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    # attach tenant / unit info
-    tenant_ids = list({i["tenant_id"] for i in issues})
-    unit_ids = list({i["unit_id"] for i in issues})
+    # Backfill missing tenant_id from legacy `reported_by` (older seed scripts used a different key)
+    for i in issues:
+        if not i.get("tenant_id") and i.get("reported_by"):
+            i["tenant_id"] = i["reported_by"]
+    # attach tenant / unit info — use .get() so a row missing either key doesn't blow up the whole list
+    tenant_ids = list({i["tenant_id"] for i in issues if i.get("tenant_id")})
+    unit_ids = list({i["unit_id"] for i in issues if i.get("unit_id")})
     if tenant_ids:
         tenants = await db["users"].find(
             {"id": {"$in": tenant_ids}}, {"_id": 0, "id": 1, "full_name": 1, "phone": 1}
@@ -38,11 +42,11 @@ async def list_issues(user: dict = Depends(get_current_user)):
     else:
         u_map = {}
     for i in issues:
-        t = t_map.get(i["tenant_id"])
+        t = t_map.get(i.get("tenant_id"))
         if t:
             i["tenant_name"] = t["full_name"]
-            i["tenant_phone"] = t["phone"]
-        u = u_map.get(i["unit_id"])
+            i["tenant_phone"] = t.get("phone", "")
+        u = u_map.get(i.get("unit_id"))
         if u:
             i["unit_number"] = u["unit_number"]
         if i.get("assigned_to"):
@@ -125,7 +129,7 @@ async def get_messages(issue_id: str, user: dict = Depends(get_current_user)):
     # access control
     allowed = (
         (user["role"] == "landlord" and issue["landlord_id"] == user["id"])
-        or (user["role"] == "tenant" and issue["tenant_id"] == user["id"])
+        or (user["role"] == "tenant" and issue.get("tenant_id", issue.get("reported_by")) == user["id"])
         or (user["role"] in ("caretaker", "security") and issue["landlord_id"] == user.get("landlord_id"))
         or (user["role"] == "admin")
     )
@@ -145,7 +149,7 @@ async def post_message(
         raise HTTPException(404, "Issue not found")
     allowed = (
         (user["role"] == "landlord" and issue["landlord_id"] == user["id"])
-        or (user["role"] == "tenant" and issue["tenant_id"] == user["id"])
+        or (user["role"] == "tenant" and issue.get("tenant_id", issue.get("reported_by")) == user["id"])
         or (user["role"] == "caretaker" and issue["landlord_id"] == user.get("landlord_id"))
     )
     if not allowed:
