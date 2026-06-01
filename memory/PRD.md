@@ -1,4 +1,4 @@
-# Nyumba OS — Product Requirements Document (PRD)
+# NYUMBA FITI — Product Requirements Document (PRD)
 
 ## Original Problem Statement
 Build a comprehensive rental management system for Nairobi serving multiple roles (Landlord, Tenant, Caretaker, Prospect, Security, Super Admin). Core features: property + unit management, M-Pesa STK Push for rent & bills, issue ticketing, public marketplace for vacant units, paid viewings (KES 200), digital leases, visitor QR passes, tenant Community hub, Yard Sale marketplace with monetization, AI Concierge chat, Super Admin god-mode oversight + 3.5% commission tracking + approvals.

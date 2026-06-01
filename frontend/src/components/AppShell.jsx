@@ -100,7 +100,7 @@ export default function AppShell() {
             </div>
             <div>
               <div className="font-display font-black text-base tracking-tight leading-none">
-                NYUMBA OS
+                NYUMBA FITI
               </div>
               <div className="overline text-zinc-500 mt-0.5">
                 {user.role}
@@ -142,7 +142,7 @@ export default function AppShell() {
       <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-zinc-200 px-4 py-3 z-40 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Building2 className="w-5 h-5" />
-          <span className="font-display font-black text-base">NYUMBA OS</span>
+          <span className="font-display font-black text-base">NYUMBA FITI</span>
         </div>
         <div className="flex items-center gap-2">
           <NotificationBell />

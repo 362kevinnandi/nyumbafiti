@@ -1,4 +1,4 @@
-"""Demo data seeder for Nyumba OS.
+"""Demo data seeder for NYUMBA FITI.
 
 Usage:
   cd /app/backend && python3 seed_demo_data.py [--reset]
@@ -165,7 +165,7 @@ async def main():
     # ---- Announcements (4) ----
     for i, txt in enumerate([
         ("Water shutdown Saturday 9am-12pm", "global", "Nairobi Water has scheduled maintenance. Stock up tonight."),
-        ("Welcome to Nyumba OS 🎉", "global", "Pay rent via M-Pesa in 3 taps, raise issues, find verified units."),
+        ("Welcome to NYUMBA FITI 🎉", "global", "Pay rent via M-Pesa in 3 taps, raise issues, find verified units."),
         ("Garbage day shifted to Wednesday", "property", "Bins at the back gate by 6am sharp."),
         ("Reminder: lease renewals due Feb 28", "property", "Please confirm via the Agreements tab."),
     ]):

@@ -1,4 +1,4 @@
-# Nyumba OS — Launch Checklist
+# NYUMBA FITI — Launch Checklist
 
 A practical, ordered checklist to take your rental management system from demo to a real product Nairobi landlords are using and paying with real M-Pesa.
 
@@ -78,10 +78,10 @@ For week 1, **don't rely on self-registration**:
 
 ### 3.2 Monitor the first real M-Pesa transactions
 - Watch `/var/log/supervisor/backend.*.log` for callbacks.
-- For the first 10 transactions, manually reconcile each one in M-Pesa for Business vs. the Payments page in Nyumba OS.
+- For the first 10 transactions, manually reconcile each one in M-Pesa for Business vs. the Payments page in NYUMBA FITI.
 
 ### 3.3 Customer support channel
-- Set up a single WhatsApp Business number for "Nyumba OS Help".
+- Set up a single WhatsApp Business number for "NYUMBA FITI Help".
 - Document common issues (M-Pesa prompt not received, wrong amount, forgot password) and the fix for each.
 
 ---

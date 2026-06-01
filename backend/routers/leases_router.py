@@ -113,7 +113,7 @@ def _build_pdf(lease: dict, landlord: dict, tenant: dict, prop: dict, unit: dict
             f"<b>From IP:</b> {lease.get('signed_ip','')}", body))
     else:
         story.append(Paragraph(
-            "Awaiting tenant electronic signature via the Nyumba OS app.", body))
+            "Awaiting tenant electronic signature via the NYUMBA FITI app.", body))
 
     doc.build(story)
     return buf.getvalue()

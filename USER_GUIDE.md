@@ -1,6 +1,6 @@
-# Nyumba OS — User Guides
+# NYUMBA FITI — User Guides
 
-Welcome to **Nyumba OS**, your Nairobi rental management platform. This document is a complete step-by-step guide for every type of user.
+Welcome to **NYUMBA FITI**, your Nairobi rental management platform. This document is a complete step-by-step guide for every type of user.
 
 ---
 
@@ -172,13 +172,13 @@ Click any card. You see:
 
 ## M-Pesa Payments
 
-All payments on Nyumba OS use **Safaricom's M-Pesa STK Push**. Here's what happens behind the scenes:
+All payments on NYUMBA FITI use **Safaricom's M-Pesa STK Push**. Here's what happens behind the scenes:
 
 1. You click a Pay button.
-2. Nyumba OS asks Safaricom to "push" a payment prompt to your registered phone.
+2. NYUMBA FITI asks Safaricom to "push" a payment prompt to your registered phone.
 3. Your phone vibrates with a popup asking for your M-Pesa PIN.
 4. You enter the PIN. Safaricom processes the transaction in seconds.
-5. Safaricom sends a **confirmation receipt** back to Nyumba OS.
+5. Safaricom sends a **confirmation receipt** back to NYUMBA FITI.
 6. The bill (or viewing) is automatically marked **paid** and you see the M-Pesa receipt code on screen.
 
 ### Phone number formats accepted
@@ -217,4 +217,4 @@ Sidebar → **Payments** as a landlord. Each row shows the phone, amount, M-Pesa
 
 ---
 
-*Last updated: Feb 2026 · Nyumba OS v1.0*
+*Last updated: Feb 2026 · NYUMBA FITI v1.0*

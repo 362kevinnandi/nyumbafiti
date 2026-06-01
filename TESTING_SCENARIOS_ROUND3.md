@@ -1,4 +1,4 @@
-# Nyumba OS — Round 3 Testing Scenarios
+# NYUMBA FITI — Round 3 Testing Scenarios
 
 > Covers: Social reactions, announcement read receipts, multi-turn AI Concierge, prospect QR entry pass, Admin God-Mode Moderation, plus regression for Round 1/2 (Security role, tenancy types, yard sale monetization).
 

@@ -194,7 +194,7 @@ def _to_xlsx(rows: List[Dict[str, Any]], sheet_name: str = "Sheet1") -> bytes:
     return buf.getvalue()
 
 
-def _to_pdf(rows: List[Dict[str, Any]], title: str = "Nyumba OS Export") -> bytes:
+def _to_pdf(rows: List[Dict[str, Any]], title: str = "NYUMBA FITI Export") -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import landscape, A4
     from reportlab.lib.styles import getSampleStyleSheet
@@ -256,7 +256,7 @@ async def export_resource(
         )
     # pdf
     return StreamingResponse(
-        io.BytesIO(_to_pdf(rows, title=f"Nyumba OS — {resource.title()}")),
+        io.BytesIO(_to_pdf(rows, title=f"NYUMBA FITI — {resource.title()}")),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

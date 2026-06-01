@@ -176,7 +176,7 @@ export default function MarketplaceDetailPage() {
               <div className="bg-white border border-zinc-200 rounded-md p-6">
               <div className="overline text-zinc-500 mb-2">Listed by</div>
               <div className="font-display font-bold text-lg mb-1">{listing.landlord_name}</div>
-              <div className="text-xs text-zinc-500 mb-6">Verified landlord on Nyumba OS</div>
+              <div className="text-xs text-zinc-500 mb-6">Verified landlord on NYUMBA FITI</div>
 
               <div className="border-t border-zinc-100 pt-5">
                 <div className="overline text-zinc-500 mb-2">Viewing fee</div>

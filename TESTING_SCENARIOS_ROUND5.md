@@ -1,4 +1,4 @@
-# Nyumba OS — Round 5 Testing Scenarios
+# NYUMBA FITI — Round 5 Testing Scenarios
 
 > Round 5 changes:
 > 1. **Security can scan visitor passes** (frontend bug fixed)

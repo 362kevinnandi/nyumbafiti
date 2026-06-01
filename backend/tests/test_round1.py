@@ -1,4 +1,4 @@
-"""Round 1 fine-tuning tests - Nyumba OS
+"""Round 1 fine-tuning tests - NYUMBA FITI
 Covers: bills notification labels, property category/sub_type/tenancy_types,
 tenant.tenancy_type, lease.agreement_type + PDF title, Security CRUD,
 visitor pass scan by security, issue resolved_by_role attribution, public listings.

@@ -1,4 +1,4 @@
-# Nyumba OS — Round 6 Testing Scenarios
+# NYUMBA FITI — Round 6 Testing Scenarios
 
 > **What changed**:
 > 1. **Removed the false-success demo callback bug** — STK pushes that the user cancels (or simply ignores) now correctly settle as `failed`. Previously they auto-marked `succeeded` after 15s.

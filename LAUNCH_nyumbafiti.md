@@ -1,4 +1,4 @@
-# Launching Nyumba OS at **nyumbafiti.co.ke** — Step-by-step
+# Launching NYUMBA FITI at **nyumbafiti.co.ke** — Step-by-step
 
 > Goal: ship the app to your own domain, with a production MongoDB, real Safaricom Daraja credentials, and SSL. Estimated time: **2–4 hours** end to end.
 

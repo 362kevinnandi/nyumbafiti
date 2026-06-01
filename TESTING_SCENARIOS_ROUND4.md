@@ -1,4 +1,4 @@
-# Nyumba OS — Round 4 Testing Scenarios
+# NYUMBA FITI — Round 4 Testing Scenarios
 
 > Round 4 = Security auto-approve + admin password reset + forced KES 35 yard-sale unlock + public pass viewer + lease/rental marketplace filter + M-Pesa sandbox keys live + admin CSV/XLSX/PDF exports + property tile sliders.
 

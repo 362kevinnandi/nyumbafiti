@@ -1,4 +1,4 @@
-# Nyumba OS — Complete Testing Scenarios
+# NYUMBA FITI — Complete Testing Scenarios
 
 Full end-to-end manual QA playbook for **every feature** in the platform (MVP + Phase 1 + Phase 2 + Phase 3 + Phase 4).
 Estimated total runtime: ~60-90 minutes. Run in order — later scenarios depend on data created in earlier ones.

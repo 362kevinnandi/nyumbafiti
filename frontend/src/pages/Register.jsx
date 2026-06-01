@@ -49,7 +49,7 @@ export default function RegisterPage() {
         />
         <div className="relative z-10 flex items-center gap-2">
           <Building2 className="w-6 h-6" />
-          <span className="font-display font-black text-xl tracking-tight">NYUMBA OS</span>
+          <span className="font-display font-black text-xl tracking-tight">NYUMBA FITI</span>
         </div>
         <div className="relative z-10 space-y-6">
           <div className="overline text-zinc-400">Start collecting rent today</div>
