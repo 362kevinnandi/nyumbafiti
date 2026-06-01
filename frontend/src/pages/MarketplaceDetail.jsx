@@ -57,7 +57,7 @@ export default function MarketplaceDetailPage() {
           </Link>
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5" />
-            <span className="font-display font-black text-base tracking-tight">NYUMBA OS</span>
+            <span className="font-display font-black text-base tracking-tight">NYUMBA FITI</span>
           </div>
         </div>
       </header>

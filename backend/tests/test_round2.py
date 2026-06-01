@@ -1,4 +1,4 @@
-"""Round 2 fine-tuning tests - Yard Sale monetization (Nyumba OS).
+"""Round 2 fine-tuning tests - Yard Sale monetization (Nyumba FITI).
 
 Covers:
 - POST /api/yard-sale/listings starts scope='property', contact_unlocked=false,

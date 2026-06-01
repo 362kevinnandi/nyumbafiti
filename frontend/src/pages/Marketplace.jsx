@@ -100,7 +100,7 @@ export default function MarketplacePage() {
               <Building2 className="w-4 h-4 text-white" />
             </div>
             <div>
-              <div className="font-display font-black text-base tracking-tight leading-none">NYUMBA OS</div>
+              <div className="font-display font-black text-base tracking-tight leading-none">NYUMBA FITI</div>
               <div className="overline text-zinc-500 text-[10px] mt-0.5">Listings · Nairobi</div>
             </div>
           </Link>
@@ -285,7 +285,7 @@ export default function MarketplacePage() {
 
       <footer className="border-t border-zinc-200 mt-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-wrap items-center justify-between gap-4 text-sm text-zinc-500">
-          <div>© 2026 Nyumba OS · Built for Nairobi landlords</div>
+          <div>© 2026 Nyumba FitI · Built for landlords</div>
           <div className="flex gap-6">
             <Link to="/login" className="hover:text-zinc-950">Tenant / Landlord Login</Link>
             <Link to="/register" className="hover:text-zinc-950">List your property</Link>

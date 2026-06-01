@@ -54,7 +54,7 @@ export default function PassViewPage() {
               <Building2 className="w-4 h-4 text-white" />
             </div>
             <div>
-              <div className="font-display font-black text-base tracking-tight leading-none">NYUMBA OS</div>
+              <div className="font-display font-black text-base tracking-tight leading-none">NYUMBA FITI</div>
               <div className="overline text-zinc-500 text-[10px] mt-0.5">Visitor Entry Pass</div>
             </div>
           </div>

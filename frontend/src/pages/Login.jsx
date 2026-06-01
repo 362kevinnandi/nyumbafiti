@@ -45,7 +45,7 @@ export default function LoginPage() {
         <div className="relative z-10 flex items-center gap-2">
           <Building2 className="w-6 h-6" strokeWidth={2} />
           <span className="font-display font-black text-xl tracking-tight">
-            NYUMBA OS
+            NYUMBA FITI
           </span>
         </div>
         <div className="relative z-10 space-y-6">
@@ -78,7 +78,7 @@ export default function LoginPage() {
         <div className="w-full max-w-sm space-y-8">
           <div className="lg:hidden flex items-center gap-2 mb-4">
             <Building2 className="w-6 h-6" />
-            <span className="font-display font-black text-xl">NYUMBA OS</span>
+            <span className="font-display font-black text-xl">NYUMBA FITI</span>
           </div>
           <div>
             <div className="overline text-zinc-500 mb-2">Sign in</div>
